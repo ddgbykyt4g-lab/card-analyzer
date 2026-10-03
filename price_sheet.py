@@ -39,6 +39,7 @@ log = logging.getLogger("price_sheet")
 UK = ZoneInfo("Europe/London")
 MARKET = dict(code="TOTAL_CARDS", unit="cards", scope="match", period="FT")
 DEFAULT_LINES = [x / 2 for x in range(5, 14)]  # 2.5 .. 6.5
+TEAM_LINES = (0.5, 1.5, 2.5, 3.5)
 
 
 def fixtures(con: sqlite3.Connection, now: datetime, days: float) -> list[sqlite3.Row]:
@@ -72,6 +73,13 @@ def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_e
         return out
     pmf = priced.pmf
     out["projection"] = dict(cards=round(priced.rating, 3), **priced.detail)
+    if priced.detail.get("model") == "glm":  # per-team lines (Poisson on each team's expected cards)
+        out["team_lines"] = {
+            side: [dict(line=tl, p_over=(po := poisson_tail(priced.detail[f"{side}_mu"], tl, "over")[0]),
+                        fair_over=odds_for(po, 0, 0), min_over=odds_for(po, 0, min_ev),
+                        fair_under=odds_for(1 - po, 0, 0), min_under=odds_for(1 - po, 0, min_ev))
+                   for tl in TEAM_LINES]
+            for side in ("home", "away")}
     for line in lines:
         p_over, push = side_probs(pmf, line, "over")
         p_under, _ = side_probs(pmf, line, "under")
@@ -113,6 +121,12 @@ def print_sheet(sheet: list[dict], min_ev: float) -> None:
             print(f"  {r['line']:4.1f}  {r['p_over']:6.1%} {r['p_under']:6.1%} {push}  "
                   f"{_odds(r['fair_over'])}{_odds(r['fair_under'])}  "
                   f"{_odds(r['min_over'])}{_odds(r['min_under'])}")
+        home, away = m["fixture"].split(" v ", 1)
+        for side, name in (("home", home), ("away", away)):
+            if side in m.get("team_lines", {}):
+                cells = "  ".join(f"o{t['line']:.1f} {t['p_over']:4.0%} min {_odds(t['min_over']).strip()}"
+                                  for t in m["team_lines"][side])
+                print(f"  {name[:16]:16} {cells}")
 
 
 # ───────────────────────────── Manual bet logging ─────────────────────────────

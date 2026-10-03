@@ -17,6 +17,11 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
    - Add `--dry-run` to evaluate without writing to `value_bets`
 3. Price sheet for the next 7 days: `python price_sheet.py --db cards.db` (`--json` available)
 
+## Saturday agent
+- A scheduled routine runs `agent/SATURDAY.md` each Saturday morning: updates data, settles bets,
+  prices the day's matches, researches team news and writes `reports/<date>.md` with a shortlist of
+  minimum acceptable odds. It never places bets.
+
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
