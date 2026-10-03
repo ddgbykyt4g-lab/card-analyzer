@@ -196,6 +196,7 @@ class DB:
             self.con.executescript(Path(schema).read_text())
         if not self._has_schema():
             raise SystemExit("Schema missing: pass --init-schema card_value_schema.sql")
+        self._has_prices: bool | None = None
 
     def _has_schema(self) -> bool:
         return bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='leagues'"))
@@ -288,6 +289,26 @@ class DB:
              m["referee_id"], m["external_id"], mid))
         return mid
 
+    def upsert_prices(self, match_id: int, row: dict) -> None:
+        """Pre-match 1X2 market averages (migration 001); no-op until that table exists."""
+        if self._has_prices is None:
+            self._has_prices = bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'"))
+        try:
+            odds = [float(row.get(k) or 0) for k in ("AvgH", "AvgD", "AvgA")]
+        except ValueError:
+            return
+        if not self._has_prices or min(odds) <= 1:
+            return
+        inv = [1 / o for o in odds]
+        p = [x / sum(inv) for x in inv]
+        self.con.execute(
+            """INSERT INTO match_prices (match_id, source, home_odds, draw_odds, away_odds, p_home, p_draw, p_away)
+               VALUES (?,?,?,?,?,?,?,?)
+               ON CONFLICT(match_id) DO UPDATE SET home_odds=excluded.home_odds, draw_odds=excluded.draw_odds,
+                   away_odds=excluded.away_odds, p_home=excluded.p_home, p_draw=excluded.p_draw,
+                   p_away=excluded.p_away""",
+            (match_id, "football-data:avg", *odds, *p))
+
     def upsert_cards(self, match_id: int, team_id: int, is_home: int, yellows: int,
                      second_yellows: int, straight_reds: int, fouls: int | None) -> None:
         self.con.execute(
@@ -351,6 +372,7 @@ async def load_results(ctx: BrowserContext, db: DB, code: str, season: str) -> N
             referee_id=db.referee_id(ref, cfg["country"], "football-data") if ref else None,
             external_id=None,
         ))
+        db.upsert_prices(mid, r)
         if _int(r, "HY") is None:
             continue
         # football-data gives total reds without the second-yellow split -> all into straight_reds
@@ -383,9 +405,10 @@ async def load_upcoming(ctx: BrowserContext, db: DB, codes: list[str], season: s
         if mid and db.one("SELECT status FROM matches WHERE match_id=?", mid) == "finished":
             continue  # fixtures.csv can lag behind results
         ref = (r.get("Referee") or "").strip()
-        db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko, home=home, away=away,
-                             status="scheduled", hg=None, ag=None, external_id=None,
-                             referee_id=db.referee_id(ref, cfg["country"], "football-data") if ref else None))
+        mid = db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko, home=home, away=away,
+                                   status="scheduled", hg=None, ag=None, external_id=None,
+                                   referee_id=db.referee_id(ref, cfg["country"], "football-data") if ref else None))
+        db.upsert_prices(mid, r)
         added += 1
     db.commit()
     log.info("football-data fixtures: %d upcoming %s matches", added, "/".join(codes))
