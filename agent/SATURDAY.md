@@ -5,6 +5,8 @@ says to stop. Everything in `CLAUDE.md` applies. Above all: **never place bets o
 you produce a shortlist; the user decides and places bets.
 
 ## 1. Set up
+0. A fresh checkout is on a detached HEAD, where `git push origin main` silently pushes nothing. First run:
+   `git fetch origin main && git checkout -B main origin/main`
 1. Attach and clone the repo: `add_repo` owner `ddgbykyt4g-lab`, repo `card-analyzer`, access `push`,
    then clone it as the tool instructs and `cd` into the clone. Work only there.
 2. Python environment:
@@ -68,7 +70,8 @@ Write `reports/<YYYY-MM-DD>.md` containing:
 
 Then commit `cards.db` and the report and push:
 ```
-git add cards.db reports/ && git commit -m "Saturday shortlist <date>" && git fetch origin main && git rebase origin/main && git push origin main
+git add cards.db reports/ && git commit -m "Saturday shortlist <date>" && git fetch origin main && git rebase origin/main && git push origin HEAD:main
+git fetch origin main && git status -sb | head -1   # must show main in sync with origin/main
 ```
 (add the attribution lines your environment requires to the commit message).
 
