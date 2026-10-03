@@ -167,6 +167,25 @@ class CardGLM:
         return mu[0::2], mu[1::2], sizes
 
 
+class GLMPredictor:
+    """Fits once on every finished match before `asof`, then predicts any loaded match."""
+
+    def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig()):
+        self.d = Data(con, include_scheduled=True)
+        day = int(np.datetime64(asof[:10], "D").astype(int))
+        train = np.where(self.d.finished & (self.d.day < day))[0]
+        self.model = CardGLM(self.d, cfg).fit(train, day)
+        self.ix = {int(m): i for i, m in enumerate(self.d.match_id)}
+
+    def predict(self, match_id: int) -> dict | None:
+        i = self.ix.get(int(match_id))
+        if i is None:
+            return None
+        h, a, sizes = self.model.predict(np.array([i]))
+        return dict(mean=float(h[0] + a[0]), home=float(h[0]), away=float(a[0]), size=sizes[0],
+                    has_prices=bool(self.d.has_prices[i]))
+
+
 # ───────────────────────────── Walk-forward backtest ─────────────────────────────
 def walk_forward(con: sqlite3.Connection, seasons: list[str], cfg: GLMConfig, data: Data | None = None) -> dict:
     """Refit weekly on everything before each week; returns {match_id: prediction dict}."""

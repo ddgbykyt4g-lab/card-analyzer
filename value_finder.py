@@ -25,12 +25,14 @@ import logging
 import math
 import sqlite3
 import sys
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 log = logging.getLogger("value_finder")
 ISO = "%Y-%m-%dT%H:%M:%SZ"
 MODEL_VERSION = "pcr-v1"
+MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v1"}
 
 
 # ───────────────────────────── Config & types ─────────────────────────────
@@ -65,6 +67,7 @@ class Config:
     trend_recent: int = 40   # scale by league mean of the last N league matches / last trend_base (0 = off)
     trend_base: int = 400
     trend_prior: float = 40.0  # pseudo-matches pulling that ratio toward 1
+    model: str = "glm"  # "glm" (team-level regression, glm_model.py) or "pcr" (three-way average)
 
 
 @dataclass
@@ -245,6 +248,57 @@ def fit_pmf(stats: Stats, cfg: Config, league_id: int, w: Weights, before: str, 
     return make_pmf(rating / scale, size), size, scale
 
 
+@dataclass
+class Priced:
+    rating: float              # projected total in market units
+    pmf: Callable[[int], float]  # in count units: compare against line / scale
+    scale: float
+    components: str
+    detail: dict = field(default_factory=dict)
+
+
+class Projector:
+    """Prices a fixture with the configured model. The GLM needs match_prices (migration 001);
+    without it, or for a match it can't see, this falls back to the PCR average."""
+
+    def __init__(self, con: sqlite3.Connection, cfg: Config, now: datetime):
+        self.stats, self.cfg, self.glm = Stats(con, cfg), cfg, None
+        self.version = MODEL_VERSIONS["pcr"]
+        if cfg.model == "glm":
+            if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'").fetchone():
+                from glm_model import GLMPredictor  # lazy: glm_model imports this module
+                self.glm = GLMPredictor(con, now.strftime(ISO))
+                self.version = MODEL_VERSIONS["glm"]
+            else:
+                log.warning("match_prices missing (migration 001); using the PCR model")
+
+    def price(self, fx: sqlite3.Row, w: Weights) -> Priced | None:
+        scale = w.yellow
+        if self.glm and (g := self.glm.predict(fx["match_id"])):
+            # GLM is fitted in card units (1/1/2); other settlement weights are approximated by scale
+            size = g["size"]
+            return Priced(g["mean"] * scale, make_pmf(g["mean"], size), scale,
+                          f"GLM H {g['home']:.2f} A {g['away']:.2f}"
+                          + ("" if g["has_prices"] else " (no 1X2 prices)")
+                          + f" dist={'NB r=%.1f' % size if size else 'Poisson'}",
+                          dict(model="glm", home_mu=round(g["home"], 3), away_mu=round(g["away"], 3),
+                               has_prices=g["has_prices"],
+                               distribution=f"NB r={size:.1f}" if size else "Poisson"))
+        proj = project(self.stats, self.cfg, fx, w)
+        if proj is None:
+            return None
+        pmf, size, scale = fit_pmf(self.stats, self.cfg, fx["league_id"], w, fx["kickoff_utc"], proj.rating)
+        return Priced(proj.rating, pmf, scale,
+                      f"H {proj.home_avg:.2f}/{proj.home_n} A {proj.away_avg:.2f}/{proj.away_n} "
+                      f"R {proj.ref_avg:.2f}/{proj.ref_n} ({proj.ref_source}) "
+                      + (f"trend x{proj.trend:.3f} " if proj.trend != 1 else "")
+                      + f"dist={'NB r=%.1f' % size if size else 'Poisson'}",
+                      dict(model="pcr", home_avg=round(proj.home_avg, 3), home_n=proj.home_n,
+                           away_avg=round(proj.away_avg, 3), away_n=proj.away_n,
+                           ref_avg=round(proj.ref_avg, 3), ref_n=proj.ref_n, ref_source=proj.ref_source,
+                           trend=round(proj.trend, 4), distribution=f"NB r={size:.1f}" if size else "Poisson"))
+
+
 def latest_quotes(con: sqlite3.Connection, match_id: int, now: datetime, max_age_h: float):
     return con.execute(
         """SELECT * FROM (
@@ -261,8 +315,9 @@ def latest_quotes(con: sqlite3.Connection, match_id: int, now: datetime, max_age
         (match_id, (now - timedelta(hours=max_age_h)).strftime(ISO), now.strftime(ISO))).fetchall()
 
 
-def evaluate(con: sqlite3.Connection, cfg: Config, now: datetime) -> list[Candidate]:
-    stats = Stats(con, cfg)
+def evaluate(con: sqlite3.Connection, cfg: Config, now: datetime,
+             projector: Projector | None = None) -> list[Candidate]:
+    projector = projector or Projector(con, cfg, now)
     fixtures = con.execute(
         """SELECT m.match_id, m.kickoff_utc, m.home_team_id, m.away_team_id, m.referee_id,
                   s.league_id, h.name AS home, a.name AS away, r.name AS referee
@@ -281,11 +336,10 @@ def evaluate(con: sqlite3.Connection, cfg: Config, now: datetime) -> list[Candid
             if is_quarter_line(q["line"]):
                 continue  # Asian quarter lines need split-stake settlement; not modelled here
             w = weights_for(con, q["bookmaker_id"], q["market_id"], q["unit"])
-            proj = project(stats, cfg, fx, w)
-            if proj is None:
+            priced = projector.price(fx, w)
+            if priced is None:
                 break  # same inputs for every quote on this fixture
-
-            pmf, size, scale = fit_pmf(stats, cfg, fx["league_id"], w, fx["kickoff_utc"], proj.rating)
+            pmf, scale = priced.pmf, priced.scale
 
             prices = {"over": q["over_odds"], "under": q["under_odds"]}
             overround = sum(1 / o for o in prices.values() if o)
@@ -303,17 +357,15 @@ def evaluate(con: sqlite3.Connection, cfg: Config, now: datetime) -> list[Candid
                     odds=odds, implied_prob=implied,
                     fair_prob=implied / overround if all(prices.values()) else implied,
                     model_prob=p_win, push_prob=p_push, ev=ev,
-                    kelly=max(0.0, (b * p_win - p_lose) / b), rating=proj.rating,
+                    kelly=max(0.0, (b * p_win - p_lose) / b), rating=priced.rating,
                     snapshot_id=q["snapshot_id"], flagged=ev >= cfg.min_ev,
-                    components=(f"H {proj.home_avg:.2f}/{proj.home_n} A {proj.away_avg:.2f}/{proj.away_n} "
-                                f"R {proj.ref_avg:.2f}/{proj.ref_n} ({proj.ref_source}) "
-                                + (f"trend x{proj.trend:.3f} " if proj.trend != 1 else "")
-                                + f"dist={'NB r=%.1f' % size if size else 'Poisson'}"),
+                    components=priced.components,
                 ))
     return out
 
 
-def log_bets(con: sqlite3.Connection, cands: list[Candidate], now: datetime) -> int:
+def log_bets(con: sqlite3.Connection, cands: list[Candidate], now: datetime,
+             model_version: str = MODEL_VERSION) -> int:
     """Insert flagged bets as paper bets (stake 0). Skips if an identical pending bet exists."""
     logged = 0
     for c in (c for c in cands if c.flagged):
@@ -323,14 +375,14 @@ def log_bets(con: sqlite3.Connection, cands: list[Candidate], now: datetime) -> 
                  AND o.match_id = ? AND o.line = ?
                  AND o.bookmaker_id = (SELECT bookmaker_id FROM odds_snapshots WHERE snapshot_id = ?)
                  AND o.market_id    = (SELECT market_id    FROM odds_snapshots WHERE snapshot_id = ?)""",
-            (MODEL_VERSION, c.selection, c.match_id, c.line, c.snapshot_id, c.snapshot_id)).fetchone()
+            (model_version, c.selection, c.match_id, c.line, c.snapshot_id, c.snapshot_id)).fetchone()
         if dup:
             continue
         con.execute(
             """INSERT INTO value_bets (snapshot_id, selection, model_version, expected_mean, model_prob,
                    model_push_prob, taken_odds, kelly_fraction, placed_at, notes)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            (c.snapshot_id, c.selection, MODEL_VERSION, c.rating, c.model_prob, c.push_prob,
+            (c.snapshot_id, c.selection, model_version, c.rating, c.model_prob, c.push_prob,
              c.odds, c.kelly, now.strftime(ISO), c.components))
         logged += 1
     con.commit()
@@ -347,7 +399,7 @@ def print_table(cands: list[Candidate], show_all: bool) -> None:
         mark = "FLAG" if c.flagged else "    "
         print(f"{mark} {c.kickoff_utc[:16].replace('T', ' ')}  {c.fixture}  [ref: {c.referee or '-'}]\n"
               f"     {c.bookmaker} {c.market} {c.selection.title()} {c.line} @ {c.odds:.2f}  "
-              f"PCR {c.rating:.2f}  model {c.model_prob:.1%}  fair {c.fair_prob:.1%}  "
+              f"Proj {c.rating:.2f}  model {c.model_prob:.1%}  fair {c.fair_prob:.1%}  "
               f"EV {c.ev:+.1%}  Kelly {c.kelly:.1%}\n     {c.components}")
 
 
@@ -364,7 +416,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-venue-split", dest="venue_split", action="store_false")
     ap.add_argument("--ref-fallback-league-avg", action="store_true",
                     help="use league average when the referee is unknown or has too few matches")
-    ap.add_argument("--distribution", choices=["negbin", "poisson"], default=Config.distribution)
+    ap.add_argument("--model", choices=["glm", "pcr"], default=Config.model,
+                    help="glm = team-level regression (default), pcr = three-way average")
+    ap.add_argument("--distribution", choices=["negbin", "poisson"], default=Config.distribution,
+                    help="PCR model only; the GLM fits its own per-league dispersion")
     ap.add_argument("--team-prior", type=float, default=Config.team_prior,
                     help="pseudo-matches at the league mean added to team averages")
     ap.add_argument("--trend-recent", type=int, default=Config.trend_recent,
@@ -387,8 +442,9 @@ def main(argv: list[str] | None = None) -> int:
     con.execute("PRAGMA foreign_keys = ON")
     now = datetime.now(timezone.utc)
 
-    cands = evaluate(con, cfg, now)
-    logged = 0 if args.dry_run else log_bets(con, cands, now)
+    projector = Projector(con, cfg, now)
+    cands = evaluate(con, cfg, now, projector)
+    logged = 0 if args.dry_run else log_bets(con, cands, now, projector.version)
     flagged = sum(c.flagged for c in cands)
 
     if args.json:

@@ -15,6 +15,18 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
    - Add `--dry-run` to evaluate without writing to `value_bets`
 3. Price sheet for the next 7 days: `python price_sheet.py --db cards.db` (`--json` available)
 
+## Model
+- Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
+  provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
+  plus pre-match 1X2 market odds as match context. Needs the `match_prices` table (migration 001).
+- `--model pcr`: the original three-way average of home team, away team and referee.
+- Backtests: `python glm_model.py --db cards.db --backtest` (GLM vs PCR, walk-forward) and
+  `python backtest.py --db cards.db` (PCR diagnostics). Keep a change only if it wins on seasons it
+  wasn't tuned on.
+
+## Migrations
+- `migrations/001_match_prices.sql` — applied to `cards.db` (pre-match 1X2 market averages).
+
 ## Rules
 - Never place bets. You may record bets and stakes the user reports, via
   `price_sheet.py --log-bet "Home v Away over 4.5 @ 2.20 bet365 £10"` (stake defaults to 1 unit).

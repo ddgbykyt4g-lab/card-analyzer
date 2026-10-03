@@ -30,8 +30,8 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from collect_cards import DB, TeamResolver
-from value_finder import (DEFAULT_WEIGHTS, ISO, MODEL_VERSION, Config, Stats, fit_pmf,
-                          is_quarter_line, project, side_probs, weights_for)
+from value_finder import (DEFAULT_WEIGHTS, ISO, Config, Projector, is_quarter_line, side_probs,
+                          weights_for)
 
 log = logging.getLogger("price_sheet")
 UK = ZoneInfo("Europe/London")
@@ -59,22 +59,17 @@ def odds_for(p_win: float, p_push: float, ev: float) -> float | None:
 
 
 # ───────────────────────────── Price sheet ─────────────────────────────
-def price_match(stats: Stats, cfg: Config, fx: sqlite3.Row, lines: list[float], min_ev: float) -> dict:
+def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_ev: float) -> dict:
     w = DEFAULT_WEIGHTS["cards"]
     out = dict(match_id=fx["match_id"], kickoff_utc=fx["kickoff_utc"], league=fx["league"],
                fixture=f"{fx['home']} v {fx['away']}", referee=fx["referee"],
                provisional=fx["referee_id"] is None, projection=None, lines=[])
-    proj = project(stats, cfg, fx, w)
-    if proj is None:
+    priced = projector.price(fx, w)
+    if priced is None:
         out["skipped"] = "not enough team or referee history"
         return out
-    pmf, size, _ = fit_pmf(stats, cfg, fx["league_id"], w, fx["kickoff_utc"], proj.rating)
-    out["projection"] = dict(cards=round(proj.rating, 3),
-                             home_avg=round(proj.home_avg, 3), home_n=proj.home_n,
-                             away_avg=round(proj.away_avg, 3), away_n=proj.away_n,
-                             ref_avg=round(proj.ref_avg, 3), ref_n=proj.ref_n, ref_source=proj.ref_source,
-                             trend=round(proj.trend, 4),
-                             distribution=f"NB r={size:.1f}" if size else "Poisson")
+    pmf = priced.pmf
+    out["projection"] = dict(cards=round(priced.rating, 3), **priced.detail)
     for line in lines:
         p_over, push = side_probs(pmf, line, "over")
         p_under, _ = side_probs(pmf, line, "under")
@@ -102,9 +97,13 @@ def print_sheet(sheet: list[dict], min_ev: float) -> None:
         if p is None:
             print(f"  skipped: {m['skipped']}")
             continue
-        print(f"  Projected cards {p['cards']:.2f}   H {p['home_avg']:.2f}/{p['home_n']}  "
-              f"A {p['away_avg']:.2f}/{p['away_n']}  R {p['ref_avg']:.2f}/{p['ref_n']} ({p['ref_source']})  "
-              + (f"trend x{p['trend']:.3f}  " if p["trend"] != 1 else "") + f"{p['distribution']}")
+        if p["model"] == "glm":
+            print(f"  Projected cards {p['cards']:.2f}   GLM: home {p['home_mu']:.2f}  away {p['away_mu']:.2f}  "
+                  + ("" if p["has_prices"] else "(no 1X2 prices)  ") + p["distribution"])
+        else:
+            print(f"  Projected cards {p['cards']:.2f}   PCR: H {p['home_avg']:.2f}/{p['home_n']}  "
+                  f"A {p['away_avg']:.2f}/{p['away_n']}  R {p['ref_avg']:.2f}/{p['ref_n']} ({p['ref_source']})  "
+                  + (f"trend x{p['trend']:.3f}  " if p["trend"] != 1 else "") + p["distribution"])
         print(f"  {'Line':>4}  {'P(O)':>6} {'P(U)':>6} {'Push':>6}  {'FairO':>7}{'FairU':>7}"
               f"  {'MinO':>7}{'MinU':>7}   (Min = lowest odds for {tag} EV)")
         for r in m["lines"]:
@@ -136,7 +135,7 @@ def parse_bet(text: str) -> dict:
                 stake=stake, stake_text=stake_text or f"{DEFAULT_STAKE:g} unit")
 
 
-def log_bet(db: DB, stats: Stats, cfg: Config, text: str, now: datetime, days: float, min_ev: float) -> dict:
+def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float, min_ev: float) -> dict:
     bet = parse_bet(text)
     if is_quarter_line(bet["line"]):
         raise SystemExit("Quarter lines (x.25/x.75) are not supported")
@@ -159,12 +158,11 @@ def log_bet(db: DB, stats: Stats, cfg: Config, text: str, now: datetime, days: f
     market_id = db.one("SELECT market_id FROM markets WHERE code = ?", MARKET["code"])
 
     w = weights_for(con, book_id, market_id, MARKET["unit"])
-    proj = project(stats, cfg, fx, w)
-    if proj is None:
+    priced = projector.price(fx, w)
+    if priced is None:
         con.rollback()
         raise SystemExit("Not enough history to model this match; bet not logged")
-    pmf, size, scale = fit_pmf(stats, cfg, fx["league_id"], w, fx["kickoff_utc"], proj.rating)
-    p_win, p_push = side_probs(pmf, bet["line"] / scale, bet["selection"])
+    p_win, p_push = side_probs(priced.pmf, bet["line"] / priced.scale, bet["selection"])
     ev = p_win * bet["odds"] + p_push - 1
     b = bet["odds"] - 1
     kelly = max(0.0, (b * p_win - (1 - p_win - p_push)) / b)
@@ -175,21 +173,20 @@ def log_bet(db: DB, stats: Stats, cfg: Config, text: str, now: datetime, days: f
         f"INSERT INTO odds_snapshots (match_id, bookmaker_id, market_id, line, {side}, captured_at) "
         "VALUES (?,?,?,?,?,?)", (fx["match_id"], book_id, market_id, bet["line"], bet["odds"], captured)).lastrowid
     provisional = fx["referee_id"] is None
-    notes = (f"manual entry: {text.strip()} | stake {bet['stake_text']} (reported by user) | H {proj.home_avg:.2f}/{proj.home_n} A {proj.away_avg:.2f}/{proj.away_n} "
-             f"R {proj.ref_avg:.2f}/{proj.ref_n} ({proj.ref_source}) "
-             f"dist={'NB r=%.1f' % size if size else 'Poisson'}" + (" | provisional" if provisional else ""))
+    notes = (f"manual entry: {text.strip()} | stake {bet['stake_text']} (reported by user) | "
+             f"{priced.components}" + (" | provisional" if provisional else ""))
     bet_id = con.execute(
         """INSERT INTO value_bets (snapshot_id, selection, model_version, expected_mean, model_prob,
                model_push_prob, taken_odds, stake, kelly_fraction, placed_at, notes)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (snap_id, bet["selection"], MODEL_VERSION, proj.rating, p_win, p_push, bet["odds"], bet["stake"],
+        (snap_id, bet["selection"], projector.version, priced.rating, p_win, p_push, bet["odds"], bet["stake"],
          kelly, captured, notes)).lastrowid
     con.commit()
     return dict(bet_id=bet_id, snapshot_id=snap_id, fixture=f"{fx['home']} v {fx['away']}",
                 kickoff_utc=fx["kickoff_utc"], referee=fx["referee"], provisional=provisional,
                 bookmaker=bet["bookmaker"], selection=bet["selection"], line=bet["line"], odds=bet["odds"],
                 stake=bet["stake"], stake_text=bet["stake_text"],
-                projected_cards=proj.rating, model_prob=p_win, push_prob=p_push,
+                projected_cards=priced.rating, model=projector.version, model_prob=p_win, push_prob=p_push,
                 fair_odds=odds_for(p_win, p_push, 0), min_odds=odds_for(p_win, p_push, min_ev),
                 ev=ev, kelly=kelly, meets_min_ev=ev >= min_ev)
 
@@ -215,7 +212,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-team-matches", type=int, default=Config.min_team_matches)
     ap.add_argument("--min-ref-matches", type=int, default=Config.min_ref_matches)
     ap.add_argument("--no-venue-split", dest="venue_split", action="store_false")
-    ap.add_argument("--distribution", choices=["negbin", "poisson"], default=Config.distribution)
+    ap.add_argument("--model", choices=["glm", "pcr"], default=Config.model,
+                    help="glm = team-level regression (default), pcr = three-way average")
+    ap.add_argument("--distribution", choices=["negbin", "poisson"], default=Config.distribution,
+                    help="PCR model only")
     ap.add_argument("--team-prior", type=float, default=Config.team_prior)
     ap.add_argument("--ref-prior", type=float, default=Config.ref_prior)
     ap.add_argument("--trend-recent", type=int, default=Config.trend_recent)
@@ -236,17 +236,17 @@ def main(argv: list[str] | None = None) -> int:
 
     db = DB(args.db, None)
     db.con.row_factory = sqlite3.Row
-    stats = Stats(db.con, cfg)
     now = datetime.now(timezone.utc)
+    projector = Projector(db.con, cfg, now)
     try:
         if args.log_bet:
-            r = log_bet(db, stats, cfg, args.log_bet, now, args.days, args.min_ev)
+            r = log_bet(db, projector, args.log_bet, now, args.days, args.min_ev)
             if args.json:
                 print(json.dumps(r, indent=2))
             else:
                 print_logged(r)
             return 0
-        sheet = [price_match(stats, cfg, fx, sorted(args.lines), args.min_ev)
+        sheet = [price_match(projector, fx, sorted(args.lines), args.min_ev)
                  for fx in fixtures(db.con, now, args.days)]
         if args.json:
             print(json.dumps({"generated_at": now.strftime(ISO), "min_ev": args.min_ev,
