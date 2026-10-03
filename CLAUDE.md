@@ -31,9 +31,15 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   until it's applied.
 
 ## Rules
-- Never place bets. You may record bets and stakes the user reports, via
-  `price_sheet.py --log-bet "Home v Away over 4.5 @ 2.20 bet365 £10"` (stake defaults to 1 unit).
+- Never place bets. You may record bets and stakes the user reports, via `price_sheet.py --log-bet`
+  (stake defaults to 1 unit; odds decimal or fractional):
+  - match total: `"Home v Away over 4.5 @ 2.20 bet365 £10"`
+  - one team: `"Home v Away: Rangers over 2.5 @ 5/2 Sky Bet £10"`
+  - each team: `"Home v Away: each team 2+ @ 15/8 Sky Bet £10"`
+  - research-prompt line: `"Home v Away | market | over 3.5 @ 2.15 | Sky Bet | model p | adjusted p | reason"`
+  - past bets: add `--placed "YYYY-MM-DD HH:MM"` (UK time); also `--adjusted-p 0.45 --reason "..."`.
   Bets that `value_finder.py` logs itself stay paper bets with stake 0.
+- Track record: `python settle.py --db cards.db --report` (user's bets vs model view vs paper bets).
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.

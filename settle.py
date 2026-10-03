@@ -51,9 +51,12 @@ def market_total(con: sqlite3.Connection, bet: dict, w: Weights, counts_staff: b
                           FROM match_team_cards WHERE match_id = ?""", (bet["match_id"],)).fetchall()
     if len(rows) != 2:
         return None
+    per_team = {tid: w.yellow * y + w.second_yellow * y2 + w.straight_red * r + (w.yellow * staff if counts_staff else 0)
+                for tid, y, y2, r, staff in rows}
+    if bet["market"] == "EACH_TEAM_CARDS":  # over: both teams above the line; under: both below
+        return min(per_team.values()) if bet["selection"] == "over" else max(per_team.values())
     team = {"home": bet["home_team_id"], "away": bet["away_team_id"]}.get(bet["scope"])
-    return sum(w.yellow * y + w.second_yellow * y2 + w.straight_red * r + (w.yellow * staff if counts_staff else 0)
-               for tid, y, y2, r, staff in rows if team is None or tid == team)
+    return sum(v for tid, v in per_team.items() if team is None or tid == team)
 
 
 def outcome(selection: str, line: float, value: float) -> str:
@@ -93,9 +96,47 @@ def settle(con: sqlite3.Connection) -> list[dict]:
     return done
 
 
+def report(con: sqlite3.Connection) -> None:
+    """Track record: your logged bets (and what the model thought of them) vs value_finder's paper bets."""
+    rows = con.execute("""
+        SELECT vb.bet_id, vb.result, vb.stake, vb.taken_odds, vb.model_prob, vb.model_push_prob, vb.profit,
+               vb.notes, vb.model_version, mk.code
+        FROM value_bets vb JOIN odds_snapshots o USING (snapshot_id) JOIN markets mk USING (market_id)""").fetchall()
+    if not rows:
+        print("No bets recorded yet.")
+        return
+
+    def line(name: str, bets: list) -> None:
+        done = [b for b in bets if b[1] not in ("pending", "void")]
+        if not bets:
+            return
+        won = sum(b[1] == "won" for b in done)
+        staked = sum(b[2] for b in done)
+        profit = sum(b[6] or 0 for b in done)
+        flat = sum((b[3] - 1) if b[1] == "won" else -1 if b[1] == "lost" else 0 for b in done)
+        exp_wins = sum(b[4] for b in done)
+        roi = f"{profit / staked:+6.1%}" if staked else "     -"
+        print(f"  {name:34} {len(bets):4d} {len(done):4d}  {won:3d}W  exp {exp_wins:5.1f}W  "
+              f"staked {staked:8.2f}  profit {profit:+8.2f}  ROI {roi}  flat-1u {flat:+6.2f}")
+
+    manual = [r for r in rows if (r[7] or "").startswith("manual entry")]
+    paper = [r for r in rows if r not in manual]
+    ev = lambda r: r[4] * r[3] + r[5] - 1
+    print(f"  {'':34} {'bets':>4} {'sett':>4}  {'won':>4} {'model expects':>13}")
+    line("Your bets", manual)
+    line("  ...that the model rated +5% EV", [r for r in manual if ev(r) >= 0.05])
+    line("  ...that the model rated below +5%", [r for r in manual if ev(r) < 0.05])
+    adj = [r for r in manual if "adj_p=" in (r[7] or "")]
+    line("  ...with a research-adjusted prob", adj)
+    line("Model paper bets (value_finder)", paper)
+    print("\n'exp W' = wins the model expected; 'flat-1u' = profit staking 1 unit on each settled bet.")
+    print("Hundreds of settled bets are needed before any of these numbers mean much.")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Settle pending value_bets from loaded card data")
     ap.add_argument("--db", default="cards.db")
+    ap.add_argument("--report", action="store_true", help="print the track record after settling")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -104,8 +145,11 @@ def main(argv: list[str] | None = None) -> int:
     con.execute("PRAGMA foreign_keys = ON")
     done = settle(con)
     pending = con.execute("SELECT COUNT(*) FROM value_bets WHERE result = 'pending'").fetchone()[0]
-    con.close()
     print(f"{len(done)} bets settled, {pending} still pending")
+    if args.report:
+        print()
+        report(con)
+    con.close()
     return 0
 
 
