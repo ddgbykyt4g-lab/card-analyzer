@@ -21,6 +21,8 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 - A scheduled routine runs `agent/SATURDAY.md` each Saturday morning: updates data, settles bets,
   prices the day's matches, researches team news and writes `reports/<date>.md` with a shortlist of
   minimum acceptable odds. It never places bets.
+  It then sends a phone alert with `agent/notify.sh` (ntfy.sh; private topic in the `NTFY_TOPIC`
+  environment variable, never written to files).
 
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent

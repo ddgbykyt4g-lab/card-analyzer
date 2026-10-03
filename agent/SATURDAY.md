@@ -72,7 +72,15 @@ git add cards.db reports/ && git commit -m "Saturday shortlist <date>" && git fe
 ```
 (add the attribution lines your environment requires to the commit message).
 
-## 7. Final message
-End with a short summary — it is sent to the user as a notification: number of matches screened, the
-shortlist (fixture, selection, minimum odds, one-line reason) or "No bet", last week's settled results, and
-any problems. Remind them: nothing has been placed; log what they actually bet with the command in the report.
+## 7. Alert and final message
+After the report is pushed (never before: the report is the record), send the phone alert:
+```
+agent/notify.sh "Cards <date>: <N> picks" "<summary>"
+```
+`<summary>` is plain text under about 900 characters: matches screened, then one line per shortlisted
+selection (fixture, selection, minimum odds, a few words of reason) or "No bet", then last week's settled
+result and any problems. Put the most important thing first. If the script reports that the alert failed or
+`NTFY_TOPIC` isn't set, say so in your final message; do not try other ways to contact the user.
+
+Then give the same summary as your final message. Remind them: nothing has been placed; log what they
+actually bet with the command in the report.
