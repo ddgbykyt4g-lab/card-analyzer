@@ -302,17 +302,24 @@ class DB:
             odds = [float(row.get(k) or 0) for k in ("AvgH", "AvgD", "AvgA")]
         except ValueError:
             return
-        if not self._has_prices or min(odds) <= 1:
-            return
+        self.store_prices(match_id, odds, "football-data:avg", overwrite=True)
+
+    def store_prices(self, match_id: int, odds: list[float], source: str, overwrite: bool) -> int:
+        """De-margined 1X2 probabilities. football-data's market average (what the model is trained on)
+        overwrites; other sources only fill matches that have no prices yet."""
+        if self._has_prices is None:
+            self._has_prices = bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'"))
+        if not self._has_prices or len(odds) != 3 or min(odds) <= 1:
+            return 0
         inv = [1 / o for o in odds]
         p = [x / sum(inv) for x in inv]
-        self.con.execute(
-            """INSERT INTO match_prices (match_id, source, home_odds, draw_odds, away_odds, p_home, p_draw, p_away)
-               VALUES (?,?,?,?,?,?,?,?)
-               ON CONFLICT(match_id) DO UPDATE SET home_odds=excluded.home_odds, draw_odds=excluded.draw_odds,
-                   away_odds=excluded.away_odds, p_home=excluded.p_home, p_draw=excluded.p_draw,
-                   p_away=excluded.p_away""",
-            (match_id, "football-data:avg", *odds, *p))
+        conflict = ("DO UPDATE SET source=excluded.source, home_odds=excluded.home_odds, draw_odds=excluded.draw_odds, "
+                    "away_odds=excluded.away_odds, p_home=excluded.p_home, p_draw=excluded.p_draw, "
+                    "p_away=excluded.p_away") if overwrite else "DO NOTHING"
+        return self.con.execute(
+            f"""INSERT INTO match_prices (match_id, source, home_odds, draw_odds, away_odds, p_home, p_draw, p_away)
+                VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(match_id) {conflict}""",
+            (match_id, source, *odds, *p)).rowcount
 
     def upsert_cards(self, match_id: int, team_id: int, is_home: int, yellows: int,
                      second_yellows: int, straight_reds: int, fouls: int | None) -> None:
@@ -499,6 +506,73 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
              code, season, found, checked, len(todo))
 
 
+# ───────────────────────────── Source 3a: ESPN week-ahead league fixtures ─────────────────────────────
+def american_to_decimal(ml) -> float | None:
+    try:
+        ml = float(ml)
+    except (TypeError, ValueError):
+        return None
+    return 1 + (ml / 100 if ml > 0 else 100 / -ml) if ml else None
+
+
+async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str, days: int = 10) -> None:
+    """Scheduled league matches for the next `days` from ESPN (fixtures.csv only looks a few days ahead).
+    Teams matched by ESPN id. Fills 1X2 prices from ESPN's bookmaker line where football-data has none yet."""
+    cfg = LEAGUES[code]
+    now = datetime.now(timezone.utc)
+    horizon = now + timedelta(days=days)
+    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    if sid is None:
+        return
+    by_espn = {a: tid for a, tid in db.q("SELECT alias, entity_id FROM name_aliases "
+                                          "WHERE source='espn-id' AND entity_type='team'")}
+    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
+                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    resolver = TeamResolver(db, team_ids)
+    added = priced = 0
+    for ym in sorted({now.strftime("%Y%m"), horizon.strftime("%Y%m")}):
+        board = await fetch_json(ctx, f"{ESPN_BASE}/{cfg['espn_slug']}/scoreboard?dates={ym}&limit=200")
+        for ev in (board or {}).get("events", []):
+            try:
+                comp = ev["competitions"][0]
+                state = ev["status"]["type"]
+                ko = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
+            except (KeyError, IndexError, ValueError):
+                continue
+            if state.get("completed") or state.get("name") in ("STATUS_POSTPONED", "STATUS_CANCELED"):
+                continue
+            if not now - timedelta(hours=3) < ko <= horizon:
+                continue
+            side = {}
+            for c in comp.get("competitors", []):
+                espn_id, name = str(c["team"]["id"]), c["team"]["displayName"]
+                tid = by_espn.get(espn_id) or resolver.resolve(name, "espn")
+                if tid is not None and espn_id not in by_espn:
+                    db.alias_save("espn-id", "team", espn_id, tid)
+                    by_espn[espn_id] = tid
+                side[c.get("homeAway")] = tid
+            home, away = side.get("home"), side.get("away")
+            if not home or not away:
+                continue
+            ko_s = ko.strftime(ISO)
+            mid = db.find_match(sid, home, away, ko_s[:10], 0)
+            if mid and db.one("SELECT status FROM matches WHERE match_id=?", mid) == "finished":
+                continue
+            mid = db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko_s, home=home, away=away,
+                                       status="scheduled", hg=None, ag=None, external_id=None, referee_id=None))
+            added += 1
+            odds = (comp.get("odds") or [{}])[0]
+            ml = odds.get("moneyline") or {}
+            dec = [american_to_decimal(((ml.get(k) or {}).get("close") or {}).get("odds")
+                                       or ((ml.get(k) or {}).get("open") or {}).get("odds"))
+                   for k in ("home", "draw", "away")]
+            if all(dec):
+                provider = ((odds.get("provider") or {}).get("name") or "espn").lower()
+                priced += db.store_prices(mid, dec, f"espn:{provider}", overwrite=False)
+    db.commit()
+    log.info("ESPN fixtures %s: %d upcoming matches in the next %d days (%d priced from ESPN)", code, added, days, priced)
+
+
 # ───────────────────────────── Source 3b: cup and European fixtures (rest days) ─────────────────────────────
 # Non-league competitions our teams play, by ESPN slug. Teams are matched by ESPN team id, learned from
 # each league's team list, so cup/European opponents with similar names can't be mismatched.
@@ -674,9 +748,12 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))
-            if not args.no_espn and not args.no_cups:
+            if not args.no_espn:
                 await _gather_logged("ESPN team ids",
                                      (load_espn_team_ids(ctx, db, c, s) for c in args.leagues for s in seasons))
+                await _gather_logged("ESPN fixtures",
+                                     (load_espn_fixtures(ctx, db, c, args.season, args.days) for c in args.leagues))
+            if not args.no_espn and not args.no_cups:
                 await _gather_logged("Cup/European fixtures",
                                      [load_other_fixtures(ctx, db, seasons, args.season)])
             if args.ref_url:
@@ -696,6 +773,7 @@ def main() -> None:
                     help="also load the N previous seasons (lookback for team/referee averages)")
     ap.add_argument("--no-espn", action="store_true", help="skip all ESPN steps (referees, cup/European fixtures)")
     ap.add_argument("--no-cups", action="store_true", help="skip the cup/European fixture step")
+    ap.add_argument("--days", type=int, default=10, help="how far ahead to load ESPN league fixtures")
     ap.add_argument("--leagues", nargs="+", default=list(LEAGUES), choices=list(LEAGUES))
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
     ap.add_argument("--headed", action="store_true", help="visible browser; helps clear JS challenges")
