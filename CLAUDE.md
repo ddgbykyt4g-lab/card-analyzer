@@ -26,6 +26,9 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 
 ## Migrations
 - `migrations/001_match_prices.sql` — applied to `cards.db` (pre-match 1X2 market averages).
+- `migrations/002_team_fixtures.sql` — NOT applied. Cup/European fixtures for rest-day features
+  (`glm_model.py --rest`); backtest showed no gain on match totals. The collector step is a no-op
+  until it's applied.
 
 ## Rules
 - Never place bets. You may record bets and stakes the user reports, via

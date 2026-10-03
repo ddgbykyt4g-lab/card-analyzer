@@ -29,7 +29,8 @@ import numpy as np
 from value_finder import DEFAULT_WEIGHTS, Config, make_pmf, side_probs
 
 W = DEFAULT_WEIGHTS["cards"]
-N_FEAT = 3  # gap, |gap|, p_draw
+BASE_FEAT = 3  # gap, |gap|, p_draw
+REST_FEAT = 5  # own short rest, own mid rest, opponent short, opponent mid, European away trip
 
 
 @dataclass(frozen=True)
@@ -39,13 +40,16 @@ class GLMConfig:
     ref_l2: float = 100.0
     fixed_l2: float = 1e-3
     iters: int = 25
+    # Rest-day features (needs team_fixtures, migration 002). Off: backtested 2022-27 with all cup and
+    # European fixtures, they didn't improve match totals (tired team x0.95 cards, its opponent x1.04).
+    rest: bool = False
 
 
 # ───────────────────────────── Data ─────────────────────────────
 class Data:
     """Two rows per match (home team, away team) with index columns for the design matrix."""
 
-    def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False):
+    def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False, rest: bool = False):
         status = "('finished','scheduled')" if include_scheduled else "('finished')"
         rows = con.execute(f"""
             SELECT m.match_id, m.kickoff_utc, m.status, s.league_id, s.label, l.code,
@@ -78,7 +82,8 @@ class Data:
         # parameter layout: [leagues | home | features | disc teams | prov teams | refs]
         self.o_home = len(leagues)
         self.o_feat = self.o_home + 1
-        self.o_disc = self.o_feat + N_FEAT
+        self.n_feat = BASE_FEAT + (REST_FEAT if rest else 0)
+        self.o_disc = self.o_feat + self.n_feat
         self.o_prov = self.o_disc + len(teams)
         self.o_ref = self.o_prov + len(teams)
         self.n_par = self.o_ref + len(refs)
@@ -98,6 +103,8 @@ class Data:
         self.ref = np.repeat([self.r_ix.get(r[8], -1) for r in rows], 2)
         gap = np.column_stack([ph - pa, pa - ph]).ravel()
         self.feat = np.column_stack([gap, np.abs(gap), np.repeat(pd, 2)])
+        if rest:
+            self.feat = np.column_stack([self.feat, rest_features(con, rows)])
 
         def cards(y, y2, r):
             return W.yellow * (y or 0) + W.second_yellow * (y2 or 0) + W.straight_red * (r or 0)
@@ -108,13 +115,48 @@ class Data:
         k = np.arange(len(team_rows))
         X[k, self.lg[team_rows]] = 1
         X[:, self.o_home] = self.is_home[team_rows]
-        X[:, self.o_feat:self.o_feat + N_FEAT] = self.feat[team_rows]
+        X[:, self.o_feat:self.o_feat + self.n_feat] = self.feat[team_rows]
         X[k, self.o_disc + self.own[team_rows]] = 1
         X[k, self.o_prov + self.opp[team_rows]] = 1
         rr = self.ref[team_rows]
         has = rr >= 0
         X[k[has], self.o_ref + rr[has]] = 1
         return X
+
+
+def rest_features(con: sqlite3.Connection, rows: list) -> np.ndarray:
+    """Per team row (home, away interleaved): [own rest <=3d, own rest 4-5d, opp rest <=3d,
+    opp rest 4-5d, previous match a European away game within 4 days]. Rest counts every
+    competition: league matches plus team_fixtures (cups/Europe) when that table exists."""
+    events: dict[int, list[tuple[int, bool]]] = {}
+    for h, a, ko in con.execute("SELECT home_team_id, away_team_id, kickoff_utc FROM matches "
+                                "WHERE status IN ('finished', 'scheduled')"):
+        d = int(np.datetime64(ko[:10], "D").astype(int))
+        events.setdefault(h, []).append((d, False))
+        events.setdefault(a, []).append((d, False))
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='team_fixtures'").fetchone():
+        for t, ko, comp, home in con.execute("SELECT team_id, kickoff_utc, competition, is_home FROM team_fixtures"):
+            d = int(np.datetime64(ko[:10], "D").astype(int))
+            events.setdefault(t, []).append((d, comp.startswith("uefa.") and not home))
+    days = {t: sorted(set(v)) for t, v in events.items()}
+    starts = {t: np.array([d for d, _ in v]) for t, v in days.items()}
+
+    def prev(team: int, day: int) -> tuple[float, bool]:
+        arr = starts.get(team)
+        if arr is None:
+            return 99.0, False
+        k = np.searchsorted(arr, day) - 1  # last event strictly before this day
+        if k < 0:
+            return 99.0, False
+        return float(day - arr[k]), days[team][k][1]
+
+    out = []
+    for r in rows:
+        day = int(np.datetime64(r[1][:10], "D").astype(int))
+        (rh, eh), (ra, ea) = prev(r[6], day), prev(r[7], day)
+        for own, opp, euro in ((rh, ra, eh), (ra, rh, ea)):
+            out.append([own <= 3, 4 <= own <= 5, opp <= 3, 4 <= opp <= 5, euro and own <= 4])
+    return np.array(out, dtype=float)
 
 
 # ───────────────────────────── Model ─────────────────────────────
@@ -171,7 +213,7 @@ class GLMPredictor:
     """Fits once on every finished match before `asof`, then predicts any loaded match."""
 
     def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig()):
-        self.d = Data(con, include_scheduled=True)
+        self.d = Data(con, include_scheduled=True, rest=cfg.rest)
         day = int(np.datetime64(asof[:10], "D").astype(int))
         train = np.where(self.d.finished & (self.d.day < day))[0]
         self.model = CardGLM(self.d, cfg).fit(train, day)
@@ -189,7 +231,7 @@ class GLMPredictor:
 # ───────────────────────────── Walk-forward backtest ─────────────────────────────
 def walk_forward(con: sqlite3.Connection, seasons: list[str], cfg: GLMConfig, data: Data | None = None) -> dict:
     """Refit weekly on everything before each week; returns {match_id: prediction dict}."""
-    d = data or Data(con)
+    d = data or Data(con, rest=cfg.rest)
     model = CardGLM(d, cfg)
     test = np.where(d.finished & np.isin(d.season, seasons))[0]
     weeks = (d.day[test] + 3) // 7  # Monday-based week buckets
@@ -249,12 +291,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--half-life", type=float, default=GLMConfig.half_life_days)
     ap.add_argument("--team-l2", type=float, default=GLMConfig.team_l2)
     ap.add_argument("--ref-l2", type=float, default=GLMConfig.ref_l2)
+    ap.add_argument("--rest", action="store_true", help="add rest-day features (needs migration 002)")
     args = ap.parse_args(argv)
     con = sqlite3.connect(args.db)
     con.row_factory = sqlite3.Row
     if not con.execute("SELECT 1 FROM sqlite_master WHERE name='match_prices'").fetchone():
         raise SystemExit("match_prices table missing: apply migrations/001_match_prices.sql and re-run the collector")
-    cfg = GLMConfig(half_life_days=args.half_life, team_l2=args.team_l2, ref_l2=args.ref_l2)
+    cfg = GLMConfig(half_life_days=args.half_life, team_l2=args.team_l2, ref_l2=args.ref_l2,
+                    rest=args.rest)
     if args.backtest:
         compare(con, args.seasons, cfg)
     con.close()

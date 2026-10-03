@@ -107,7 +107,12 @@ async def fetch_page(ctx: BrowserContext, url: str, wait_selector: str, retries:
 async def fetch_text(ctx: BrowserContext, url: str, retries: int = 3) -> str | None:
     for attempt in range(1, retries + 1):
         await THROTTLE.wait(url)
-        resp = await ctx.request.get(url, timeout=30_000)
+        try:
+            resp = await ctx.request.get(url, timeout=30_000)
+        except Exception as exc:  # timeouts, resets: retry rather than abort the whole step
+            log.warning("%s failed (%s), attempt %d", url, str(exc).splitlines()[0], attempt)
+            await asyncio.sleep(8 * attempt)
+            continue
         if resp.status == 404:
             return None
         if resp.ok:
@@ -494,6 +499,92 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
              code, season, found, checked, len(todo))
 
 
+# ───────────────────────────── Source 3b: cup and European fixtures (rest days) ─────────────────────────────
+# Non-league competitions our teams play, by ESPN slug. Teams are matched by ESPN team id, learned from
+# each league's team list, so cup/European opponents with similar names can't be mismatched.
+OTHER_COMPS = (
+    "uefa.champions", "uefa.champions_qual", "uefa.europa", "uefa.europa_qual",
+    "uefa.europa.conf", "uefa.europa.conf_qual", "uefa.super_cup",
+    "eng.fa", "eng.league_cup", "esp.copa_del_rey", "esp.super_cup", "ita.coppa_italia", "ita.super_cup",
+    "ger.dfb_pokal", "ger.super_cup", "fra.coupe_de_france", "fra.super_cup", "sco.tennents", "sco.cis",
+)
+
+
+def _has_table(db: DB, name: str) -> bool:
+    return bool(db.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", name))
+
+
+async def load_espn_team_ids(ctx: BrowserContext, db: DB, code: str, season: str) -> None:
+    """Map ESPN team ids to our teams for one league-season (name_aliases source 'espn-id').
+    Uses the league's October and March scoreboards: ESPN's team list endpoint ignores the
+    season and only returns the current members."""
+    cfg = LEAGUES[code]
+    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    if sid is None:
+        return
+    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
+                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    mapped = {tid for (tid,) in db.q("SELECT entity_id FROM name_aliases WHERE source='espn-id' AND entity_type='team'")}
+    if team_ids <= mapped:
+        return
+    resolver = TeamResolver(db, team_ids)
+    y = int(season[:4])
+    for ym in (f"{y}10", f"{y + 1}03"):
+        board = await fetch_json(ctx, f"{ESPN_BASE}/{cfg['espn_slug']}/scoreboard?dates={ym}&limit=200")
+        for ev in (board or {}).get("events", []):
+            for c in ev.get("competitions", [{}])[0].get("competitors", []):
+                espn_id, name = str(c["team"]["id"]), c["team"]["displayName"]
+                if db.alias_lookup("espn-id", "team", espn_id) is None:
+                    if (tid := resolver.resolve(name, "espn")) is not None:
+                        db.alias_save("espn-id", "team", espn_id, tid)
+        db.commit()
+
+
+async def load_other_fixtures(ctx: BrowserContext, db: DB, seasons: list[str], current: str) -> None:
+    """Cup/European/super-cup fixtures for tracked teams into team_fixtures (migration 002)."""
+    if not _has_table(db, "team_fixtures"):
+        log.info("team_fixtures table missing (migration 002); skipping cup/European fixtures")
+        return
+    by_espn = {a: tid for a, tid in db.q("SELECT alias, entity_id FROM name_aliases "
+                                          "WHERE source='espn-id' AND entity_type='team'")}
+    done = {(c, s) for c, s in db.q("SELECT DISTINCT competition, season FROM team_fixtures")}
+    horizon = (datetime.now(timezone.utc) + timedelta(days=31)).strftime("%Y-%m")
+    added = 0
+    for season in seasons:
+        y = int(season[:4])
+        months = [f"{y + (m < 7)}{m:02d}" for m in (7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6)]
+        months = [m for m in months if f"{m[:4]}-{m[4:]}" <= horizon]
+        for comp in OTHER_COMPS:
+            if season != current and (comp, season) in done:
+                continue  # past seasons don't change
+            for ym in months:
+                board = await fetch_json(ctx, f"{ESPN_BASE}/{comp}/scoreboard?dates={ym}&limit=500")
+                for ev in (board or {}).get("events", []):
+                    try:
+                        comps = ev["competitions"][0]["competitors"]
+                        state = ev["status"]["type"]
+                    except (KeyError, IndexError, TypeError):
+                        continue
+                    if state.get("name") in ("STATUS_POSTPONED", "STATUS_CANCELED", "STATUS_ABANDONED"):
+                        continue
+                    status = "finished" if state.get("completed") else "scheduled"
+                    ko = datetime.fromisoformat(ev["date"].replace("Z", "+00:00")).strftime(ISO)
+                    for c in comps:
+                        tid = by_espn.get(str(c["team"]["id"]))
+                        if tid is None:
+                            continue
+                        opp = next((o["team"]["displayName"] for o in comps if o is not c), "")
+                        db.con.execute(
+                            """INSERT INTO team_fixtures (team_id, kickoff_utc, competition, season, is_home,
+                                   opponent, status, espn_event) VALUES (?,?,?,?,?,?,?,?)
+                               ON CONFLICT(team_id, kickoff_utc) DO UPDATE SET status=excluded.status,
+                                   competition=excluded.competition, opponent=excluded.opponent""",
+                            (tid, ko, comp, season, int(c.get("homeAway") == "home"), opp, status, str(ev["id"])))
+                        added += 1
+            db.commit()
+    log.info("Cup/European fixtures: %d team rows written", added)
+
+
 # ───────────────────────────── Source 4: referee appointments ─────────────────────────────
 # Handles "Home v Away - Referee" (SPFL style) and "Home v Away" + "Referee: Name" on a following line (PL style)
 FIXTURE_RE = re.compile(
@@ -583,6 +674,11 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))
+            if not args.no_espn and not args.no_cups:
+                await _gather_logged("ESPN team ids",
+                                     (load_espn_team_ids(ctx, db, c, s) for c in args.leagues for s in seasons))
+                await _gather_logged("Cup/European fixtures",
+                                     [load_other_fixtures(ctx, db, seasons, args.season)])
             if args.ref_url:
                 await _gather_logged("Appointments", (scrape_appointments(ctx, db, u) for u in args.ref_url))
             settle(db.con)  # pending bets on matches whose cards just arrived
@@ -598,7 +694,8 @@ def main() -> None:
     ap.add_argument("--season", required=True, help="e.g. 2026-27")
     ap.add_argument("--history", type=int, default=2, metavar="N",
                     help="also load the N previous seasons (lookback for team/referee averages)")
-    ap.add_argument("--no-espn", action="store_true", help="skip the ESPN referee backfill")
+    ap.add_argument("--no-espn", action="store_true", help="skip all ESPN steps (referees, cup/European fixtures)")
+    ap.add_argument("--no-cups", action="store_true", help="skip the cup/European fixture step")
     ap.add_argument("--leagues", nargs="+", default=list(LEAGUES), choices=list(LEAGUES))
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
     ap.add_argument("--headed", action="store_true", help="visible browser; helps clear JS challenges")
