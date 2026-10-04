@@ -8,8 +8,10 @@ Over wins above the line, Under below it, and a whole-number line that lands exa
 profit = stake * (odds - 1) won, -stake lost, 0 push/void. Paper bets (stake 0) get a result
 and settled_value but zero profit.
 
-Bets on abandoned matches are voided. Postponed matches stay pending. First-/second-half
-markets are left pending: the season CSVs have no per-half cards.
+Bets on abandoned matches are voided, and so are bets on matches not played within
+POSTPONE_VOID_DAYS calendar days (UK) of the original kickoff date (Sky Bet's rule): still postponed
+after that, or rescheduled past it (original kickoff = "kickoff=" in the bet's notes). First-/second-half markets are
+left pending: the season CSVs have no per-half cards.
 
 Runs automatically at the end of collect_cards.py; can also be run on its own:
     python settle.py --db cards.db
@@ -18,12 +20,18 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sqlite3
 import sys
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
-from value_finder import DEFAULT_WEIGHTS, Weights, is_quarter_line
+from value_finder import DEFAULT_WEIGHTS, ISO, Weights, is_quarter_line
 
 log = logging.getLogger("settle")
+POSTPONE_VOID_DAYS = 3
+UK = ZoneInfo("Europe/London")
+KICKOFF_TAG = re.compile(r"kickoff=(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)")
 
 PENDING_SQL = """
     SELECT vb.bet_id, vb.selection, vb.taken_odds, vb.stake,
@@ -65,11 +73,31 @@ def outcome(selection: str, line: float, value: float) -> str:
     return "won" if (value > line) == (selection == "over") else "lost"
 
 
+def void_postponed(con: sqlite3.Connection, now: datetime | None = None) -> list[dict]:
+    """Void pending bets on matches not played within POSTPONE_VOID_DAYS of the original kickoff date."""
+    def uk_date(iso: str) -> date:
+        return datetime.strptime(iso, ISO).replace(tzinfo=timezone.utc).astimezone(UK).date()
+    today = (now or datetime.now(timezone.utc)).astimezone(UK).date()
+    rows = con.execute("""SELECT vb.bet_id, vb.notes, m.status, m.kickoff_utc FROM value_bets vb
+                          JOIN odds_snapshots o USING (snapshot_id) JOIN matches m ON m.match_id = o.match_id
+                          WHERE vb.result = 'pending' AND m.status IN ('scheduled', 'postponed')""").fetchall()
+    done = []
+    for bet_id, notes, status, kickoff in rows:
+        tag = KICKOFF_TAG.search(notes or "")
+        original = uk_date(tag[1]) if tag else uk_date(kickoff)
+        moved = (uk_date(kickoff) - original).days > POSTPONE_VOID_DAYS
+        if moved or (status == "postponed" and (today - original).days > POSTPONE_VOID_DAYS):
+            con.execute("UPDATE value_bets SET result = 'void', settled_value = NULL, profit = 0 WHERE bet_id = ?",
+                        (bet_id,))
+            done.append(dict(bet_id=bet_id, result="void", settled_value=None, profit=0.0))
+    return done
+
+
 def settle(con: sqlite3.Connection) -> list[dict]:
     """Settle every pending bet whose match is done. Returns the bets settled."""
+    done = void_postponed(con)
     cur = con.execute(PENDING_SQL)
     cols = [c[0] for c in cur.description]
-    done = []
     for bet in (dict(zip(cols, r)) for r in cur.fetchall()):
         if bet["status"] == "abandoned":
             result, value, profit = "void", None, 0.0

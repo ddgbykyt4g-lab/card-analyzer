@@ -294,6 +294,25 @@ class DB:
              m["referee_id"], m["external_id"], mid))
         return mid
 
+    def match_by_espn(self, event_id: str) -> int | None:
+        """'espn-fx:<id>' is set by the fixture loader; backfill_referees rewrites it to 'espn:<id>' once checked."""
+        return self.one("SELECT match_id FROM matches WHERE external_id IN (?, ?)",
+                        f"espn:{event_id}", f"espn-fx:{event_id}")
+
+    def merge_match(self, keep: int, dup: int) -> None:
+        """Fold a duplicate scheduled row into `keep`: bets/odds move over, football-data prices win over
+        ESPN's, a known referee is kept."""
+        con = self.con
+        con.execute("UPDATE odds_snapshots SET match_id=? WHERE match_id=?", (keep, dup))
+        if _has_table(self, "match_prices") and self.one("SELECT 1 FROM match_prices WHERE match_id=?", dup):
+            if self.one("SELECT source FROM match_prices WHERE match_id=?", dup) == "football-data:avg" \
+                    or not self.one("SELECT 1 FROM match_prices WHERE match_id=?", keep):
+                con.execute("DELETE FROM match_prices WHERE match_id=?", (keep,))
+                con.execute("UPDATE match_prices SET match_id=? WHERE match_id=?", (keep, dup))
+        con.execute("""UPDATE matches SET referee_id=COALESCE(referee_id, (SELECT referee_id FROM matches
+                       WHERE match_id=?)) WHERE match_id=?""", (dup, keep))
+        con.execute("DELETE FROM matches WHERE match_id=?", (dup,))
+
     def upsert_prices(self, match_id: int, row: dict) -> None:
         """Pre-match 1X2 market averages (migration 001); no-op until that table exists."""
         if self._has_prices is None:
@@ -539,9 +558,17 @@ async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str
                 ko = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
             except (KeyError, IndexError, ValueError):
                 continue
-            if state.get("completed") or state.get("name") in ("STATUS_POSTPONED", "STATUS_CANCELED"):
+            eid = str(ev.get("id") or "")
+            known = db.match_by_espn(eid) if eid else None
+            if state.get("name") in ("STATUS_POSTPONED", "STATUS_CANCELED"):
+                if known:  # settle voids its bets if no new date within 3 days
+                    db.con.execute("UPDATE matches SET status='postponed' WHERE match_id=? AND status='scheduled'",
+                                   (known,))
                 continue
-            if not now - timedelta(hours=3) < ko <= horizon:
+            if state.get("completed"):
+                continue
+            # a known fixture is followed wherever it moves; new ones only inside the window
+            if ko <= now - timedelta(hours=3) or (known is None and ko > horizon):
                 continue
             side = {}
             for c in comp.get("competitors", []):
@@ -555,11 +582,32 @@ async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str
             if not home or not away:
                 continue
             ko_s = ko.strftime(ISO)
-            mid = db.find_match(sid, home, away, ko_s[:10], 0)
+            mid = known or db.find_match(sid, home, away, ko_s[:10], 0) or db.one(
+                # rows stored before event ids were kept, possibly at a date the fixture has since left
+                """SELECT match_id FROM matches WHERE season_id=? AND home_team_id=? AND away_team_id=?
+                     AND status IN ('scheduled','postponed') AND external_id IS NULL
+                     AND abs(julianday(kickoff_utc) - julianday(?)) <= 14
+                   ORDER BY abs(julianday(kickoff_utc) - julianday(?)) LIMIT 1""", sid, home, away, ko_s, ko_s)
             if mid and db.one("SELECT status FROM matches WHERE match_id=?", mid) == "finished":
                 continue
-            mid = db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko_s, home=home, away=away,
-                                       status="scheduled", hg=None, ag=None, external_id=None, referee_id=None))
+            if mid is None:
+                mid = db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko_s, home=home, away=away,
+                                           status="scheduled", hg=None, ag=None, external_id=f"espn-fx:{eid}",
+                                           referee_id=None))
+            else:
+                # football-data's fixtures.csv may already hold the new date as a separate row
+                for (dup,) in db.q("""SELECT match_id FROM matches WHERE season_id=? AND home_team_id=?
+                                        AND away_team_id=? AND match_id<>? AND status='scheduled'
+                                        AND external_id IS NULL
+                                        AND abs(julianday(date(kickoff_utc)) - julianday(date(?))) <= 1""",
+                                   sid, home, away, mid, ko_s):
+                    db.merge_match(mid, dup)
+                old_ko = db.one("SELECT kickoff_utc FROM matches WHERE match_id=?", mid)
+                if old_ko != ko_s:
+                    log.info("ESPN %s: %s moved %s -> %s", code, eid, old_ko, ko_s)
+                db.con.execute("""UPDATE matches SET kickoff_utc=?, status='scheduled',
+                                      external_id=COALESCE(external_id, ?) WHERE match_id=?""",
+                               (ko_s, f"espn-fx:{eid}", mid))
             added += 1
             odds = (comp.get("odds") or [{}])[0]
             ml = odds.get("moneyline") or {}

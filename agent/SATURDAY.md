@@ -49,9 +49,9 @@ the specific evidence. No evidence → no adjustment. Don't invent precision.
 ## 5. Build the shortlist
 There is no live odds feed yet, so value is expressed as **the minimum price worth taking**.
 - Consider match totals (`lines`) and team lines (`team_lines`) from `/tmp/sheet.json`.
-- For a candidate, take the adjusted probability `p` and compute minimum odds for +5% EV: `1.05 / p`
-  (for whole-number match lines use the sheet's push-aware `min_over`/`min_under` and adjust only if you
-  changed the probability).
+- For a candidate, take the adjusted probability `p` and compute minimum odds for +5% EV: `(1.05 - p_push) / p`
+  (`p_push` is the sheet's push probability, 0 on half lines; for whole-number match lines use the sheet's
+  push-aware `min_over`/`min_under` and adjust only if you changed the probability).
 - Shortlist at most 8 selections where the research gives a concrete reason to back that side, the adjusted
   probability is at least 25%, and the minimum odds are realistic for that market. Flag correlated selections
   (same match, or same team across markets). If nothing qualifies, the shortlist is "No bet".

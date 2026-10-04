@@ -383,7 +383,7 @@ def log_bets(con: sqlite3.Connection, cands: list[Candidate], now: datetime,
                    model_push_prob, taken_odds, kelly_fraction, placed_at, notes)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (c.snapshot_id, c.selection, model_version, c.rating, c.model_prob, c.push_prob,
-             c.odds, c.kelly, now.strftime(ISO), c.components))
+             c.odds, c.kelly, now.strftime(ISO), f"{c.components} | kickoff={c.kickoff_utc}"))
         logged += 1
     con.commit()
     return logged

@@ -8,7 +8,8 @@ lines can push; prices account for that:
     fair odds      = (1 - p_push) / p_win             (EV = 0)
     min odds +EV   = (1 + min_ev - p_push) / p_win    (EV = min_ev)
 Matches with no appointed referee use the league average for the referee term and are
-marked "provisional".
+marked "provisional". Each match shows the referee's past matches with card data; under
+MIN_REF_MATCHES it is flagged "thin referee history".
 
 Usage
     python price_sheet.py --db cards.db                     # table per match
@@ -40,12 +41,16 @@ UK = ZoneInfo("Europe/London")
 MARKET = dict(code="TOTAL_CARDS", unit="cards", scope="match", period="FT")
 DEFAULT_LINES = [x / 2 for x in range(5, 14)]  # 2.5 .. 6.5
 TEAM_LINES = (0.5, 1.5, 2.5, 3.5)
+MIN_REF_MATCHES = 10  # below this the referee's average is mostly noise
 
 
 def fixtures(con: sqlite3.Connection, now: datetime, days: float) -> list[sqlite3.Row]:
     return con.execute(
         """SELECT m.match_id, m.kickoff_utc, m.home_team_id, m.away_team_id, m.referee_id,
-                  s.league_id, l.code AS league, h.name AS home, a.name AS away, r.name AS referee
+                  s.league_id, l.code AS league, h.name AS home, a.name AS away, r.name AS referee,
+                  (SELECT COUNT(*) FROM matches p
+                   WHERE p.referee_id = m.referee_id AND p.status = 'finished' AND p.kickoff_utc < m.kickoff_utc
+                     AND EXISTS (SELECT 1 FROM match_team_cards c WHERE c.match_id = p.match_id)) AS ref_matches
            FROM matches m
            JOIN seasons s USING (season_id)
            JOIN leagues l USING (league_id)
@@ -66,7 +71,10 @@ def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_e
     w = DEFAULT_WEIGHTS["cards"]
     out = dict(match_id=fx["match_id"], kickoff_utc=fx["kickoff_utc"], league=fx["league"],
                fixture=f"{fx['home']} v {fx['away']}", referee=fx["referee"],
-               provisional=fx["referee_id"] is None, projection=None, lines=[])
+               provisional=fx["referee_id"] is None,
+               ref_matches=fx["ref_matches"] if fx["referee_id"] is not None else None,
+               thin_ref=fx["referee_id"] is not None and fx["ref_matches"] < MIN_REF_MATCHES,
+               projection=None, lines=[])
     priced = projector.price(fx, w)
     if priced is None:
         out["skipped"] = "not enough team or referee history"
@@ -102,7 +110,9 @@ def print_sheet(sheet: list[dict], min_ev: float) -> None:
     for m in sheet:
         ko = datetime.strptime(m["kickoff_utc"], ISO).replace(tzinfo=timezone.utc).astimezone(UK)
         status = "  PROVISIONAL (no referee, league avg)" if m["provisional"] else ""
-        print(f"\n{ko:%a %d %b %H:%M} {m['league']}  {m['fixture']}  [ref: {m['referee'] or '-'}]{status}")
+        ref = f"{m['referee']}, {m['ref_matches']} past" if m["referee"] else "-"
+        thin = f"  THIN REFEREE HISTORY (<{MIN_REF_MATCHES})" if m["thin_ref"] else ""
+        print(f"\n{ko:%a %d %b %H:%M} {m['league']}  {m['fixture']}  [ref: {ref}]{status}{thin}")
         p = m["projection"]
         if p is None:
             print(f"  skipped: {m['skipped']}")
@@ -271,6 +281,9 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
             mu = mu_h if kind == "home" else mu_a
             p_win, p_push = poisson_tail(mu, bet["line"], bet["selection"])
             projected = mu
+    if adjusted_p is not None and adjusted_p + p_push > 1:
+        con.rollback()
+        raise SystemExit(f"Adjusted p {adjusted_p:.1%} plus the {p_push:.1%} push chance exceeds 100%")
     ev = p_win * bet["odds"] + p_push - 1
     b = bet["odds"] - 1
     kelly = max(0.0, (b * p_win - (1 - p_win - p_push)) / b)
@@ -284,6 +297,7 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
     notes = " | ".join(x for x in (
         f"manual entry: {text.strip()}",
         f"stake {bet['stake_text']} (reported by user)",
+        f"kickoff={fx['kickoff_utc']}",
         f"adj_p={adjusted_p:.4f}" if adjusted_p is not None else "",
         f"reason: {reason}" if reason else "",
         f"{market['code']} projected {projected:.2f}",
@@ -306,7 +320,7 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
                 stake=bet["stake"], stake_text=bet["stake_text"],
                 projected_cards=projected, model=projector.version, model_prob=p_win, push_prob=p_push,
                 adjusted_prob=adjusted_p,
-                adjusted_ev=adjusted_p * bet["odds"] - 1 if adjusted_p is not None else None,
+                adjusted_ev=adjusted_p * bet["odds"] + p_push - 1 if adjusted_p is not None else None,
                 fair_odds=odds_for(p_win, p_push, 0), min_odds=odds_for(p_win, p_push, min_ev),
                 ev=ev, kelly=kelly, meets_min_ev=ev >= min_ev,
                 result=result["result"] if result else "pending",

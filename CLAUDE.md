@@ -9,9 +9,12 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
    - First run only: add `--init-schema card_value_schema.sql`
    - Loads the 2 previous seasons too (`--history N`) for lookback averages
    - Loads ESPN league fixtures for the next 10 days (`--days N`), with ESPN's bookmaker 1X2 line as
-     model context until football-data publishes its market average
+     model context until football-data publishes its market average. Fixtures are matched on ESPN's
+     event id (`external_id` 'espn-fx:<id>', 'espn:<id>' once referee-checked), so a moved fixture
+     updates its row
    - Add `--headed` if an appointments page shows a bot challenge
-   - Settles pending bets automatically at the end of every run (`python settle.py --db cards.db` to run it alone)
+   - Settles pending bets automatically at the end of every run, voiding bets on matches not played
+     within 3 days of the original kickoff date (`python settle.py --db cards.db` to run it alone)
 2. Find value:
    `python value_finder.py --db cards.db --json`
    - Add `--dry-run` to evaluate without writing to `value_bets`
