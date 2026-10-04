@@ -342,13 +342,24 @@ class DB:
 
     def upsert_cards(self, match_id: int, team_id: int, is_home: int, yellows: int,
                      second_yellows: int, straight_reds: int, fouls: int | None) -> None:
+        """football-data rows: yellows exclude the first yellow of a two-yellow dismissal and all reds come
+        as straight_reds. split_reds corrects that from ESPN events (marking reds_1h); a reload keeps the
+        split while football-data's totals still agree with it, otherwise resets it for a fresh check."""
+        old = self.con.execute("""SELECT yellows, second_yellows, straight_reds, reds_1h FROM match_team_cards
+                                  WHERE match_id=? AND team_id=?""", (match_id, team_id)).fetchone()
+        if old and old[3] is not None and second_yellows == 0 \
+                and (old[0] - old[1], old[1] + old[2]) == (yellows, straight_reds):
+            self.con.execute("UPDATE match_team_cards SET fouls=COALESCE(?, fouls) WHERE match_id=? AND team_id=?",
+                             (fouls, match_id, team_id))
+            return
         self.con.execute(
             """INSERT INTO match_team_cards
                    (match_id, team_id, is_home, yellows, second_yellows, straight_reds, fouls)
                VALUES (?,?,?,?,?,?,?)
                ON CONFLICT(match_id, team_id) DO UPDATE SET
                    yellows=excluded.yellows, second_yellows=excluded.second_yellows,
-                   straight_reds=excluded.straight_reds, fouls=COALESCE(excluded.fouls, fouls)""",
+                   straight_reds=excluded.straight_reds, fouls=COALESCE(excluded.fouls, fouls),
+                   yellows_1h=NULL, reds_1h=NULL""",
             (match_id, team_id, is_home, yellows, second_yellows, straight_reds, fouls))
 
 
@@ -523,6 +534,88 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
         db.commit()
     log.info("ESPN %s %s: referees for %d of %d checked matches (%d not found on ESPN)",
              code, season, found, checked, len(todo))
+
+
+# ───────────────────────────── Source 3b: ESPN red-card split ─────────────────────────────
+SECOND_YELLOW = re.compile(r"^second yellow", re.I)
+
+
+async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> None:
+    """football-data counts a two-yellow dismissal as one red and drops its first yellow. For finished
+    matches with reds, ESPN's card events say which reds were second yellows: those move to
+    second_yellows and their first yellow is added back. Also fills yellows_1h/reds_1h, which mark the
+    match as checked. A team whose ESPN red count differs from football-data's is left as it is."""
+    cfg = LEAGUES[code]
+    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    if sid is None:
+        return
+    todo = {mid: ko for mid, ko in db.q(
+        """SELECT m.match_id, m.kickoff_utc FROM matches m WHERE m.season_id=? AND m.status='finished'
+             AND EXISTS (SELECT 1 FROM match_team_cards c WHERE c.match_id=m.match_id
+                         AND c.straight_reds > 0 AND c.reds_1h IS NULL)""", sid)}
+    if not todo:
+        return
+    by_espn = {a: tid for a, tid in db.q("SELECT alias, entity_id FROM name_aliases "
+                                          "WHERE source='espn-id' AND entity_type='team'")}
+    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
+                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    resolver = TeamResolver(db, team_ids)
+    base = f"{ESPN_BASE}/{cfg['espn_slug']}"
+    split = checked = mismatch = 0
+    for ym in sorted({ko[:7] for ko in todo.values()}):
+        board = await fetch_json(ctx, f"{base}/scoreboard?dates={ym.replace('-', '')}&limit=200")
+        for ev in (board or {}).get("events", []):
+            try:
+                side = {str(c["team"]["id"]): (by_espn.get(str(c["team"]["id"]))
+                                               or resolver.resolve(c["team"]["displayName"], "espn"), c["homeAway"])
+                        for c in ev["competitions"][0]["competitors"]}
+            except (KeyError, IndexError, TypeError):
+                continue
+            ours = {ha: tid for tid, ha in side.values()}
+            if not ours.get("home") or not ours.get("away"):
+                continue
+            mid = db.find_match(sid, ours["home"], ours["away"], ev["date"][:10])
+            if mid not in todo:
+                continue
+            summary = await fetch_json(ctx, f"{base}/summary?event={ev['id']}")
+            if summary is None:
+                continue
+            checked += 1
+            del todo[mid]
+            tally = {tid: dict(y1=0, r=0, r1=0, two=0) for tid, _ in side.values()}
+            for k in summary.get("keyEvents", []):
+                kind = (k.get("type") or {}).get("type")
+                if kind not in ("yellow-card", "red-card"):
+                    continue
+                tid = side.get(str((k.get("team") or {}).get("id")), (None,))[0]
+                if tid not in tally:
+                    continue
+                first_half = (k.get("period") or {}).get("number") == 1
+                t = tally[tid]
+                if kind == "yellow-card":
+                    t["y1"] += first_half
+                else:
+                    t["r"] += 1
+                    t["r1"] += first_half
+                    if SECOND_YELLOW.match(k.get("text") or ""):  # its first yellow is a yellow-card event
+                        t["two"] += 1
+            for tid, t in tally.items():
+                row = db.con.execute("""SELECT yellows, second_yellows, straight_reds FROM match_team_cards
+                                        WHERE match_id=? AND team_id=?""", (mid, tid)).fetchone()
+                if row is None or row[1]:
+                    continue
+                if t["r"] != row[2]:
+                    mismatch += 1
+                    log.debug("ESPN %s: match %d team %d has %d reds, football-data %d", code, mid, tid, t["r"], row[2])
+                    continue
+                db.con.execute("""UPDATE match_team_cards SET yellows=?, second_yellows=?, straight_reds=?,
+                                      yellows_1h=?, reds_1h=? WHERE match_id=? AND team_id=?""",
+                               (row[0] + t["two"], t["two"], row[2] - t["two"], t["y1"], t["r1"],
+                                mid, tid))
+                split += t["two"]
+        db.commit()
+    log.info("ESPN %s %s: %d two-yellow dismissals split out in %d checked matches (%d team red counts disagreed, "
+             "%d matches not found)", code, season, split, checked, mismatch, len(todo))
 
 
 # ───────────────────────────── Source 3a: ESPN week-ahead league fixtures ─────────────────────────────
@@ -797,6 +890,8 @@ async def run(args: argparse.Namespace) -> None:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))
             if not args.no_espn:
+                await _gather_logged("ESPN red cards",
+                                     (split_reds(ctx, db, c, s) for c in args.leagues for s in seasons))
                 await _gather_logged("ESPN team ids",
                                      (load_espn_team_ids(ctx, db, c, s) for c in args.leagues for s in seasons))
                 await _gather_logged("ESPN fixtures",

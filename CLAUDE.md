@@ -13,6 +13,8 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
      event id (`external_id` 'espn-fx:<id>', 'espn:<id>' once referee-checked), so a moved fixture
      updates its row
    - Add `--headed` if an appointments page shows a bot challenge
+   - Splits red cards into second yellows and straight reds from ESPN match events (football-data counts
+     a two-yellow dismissal as one red and drops its first yellow); `yellows_1h`/`reds_1h` mark checked teams
    - Settles pending bets automatically at the end of every run, voiding bets on matches not played
      within 3 days of the original kickoff date (`python settle.py --db cards.db` to run it alone)
 2. Find value:
@@ -51,6 +53,9 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   - research-prompt line: `"Home v Away | market | over 3.5 @ 2.15 | Sky Bet | model p | adjusted p | reason"`
   - past bets: add `--placed "YYYY-MM-DD HH:MM"` (UK time); also `--adjusted-p 0.45 --reason "..."`.
   Bets that `value_finder.py` logs itself stay paper bets with stake 0.
+- Sky Bet card markets (total, home, away, each team) settle with `settlement_rules` yellow 1, second
+  yellow 1, straight red 1, no staff cards (two yellows = 2, yellow then straight red = 2). The GLM is
+  still fitted with a straight red = 2.
 - Track record: `python settle.py --db cards.db --report` (user's bets vs model view vs paper bets).
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
