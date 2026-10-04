@@ -2,9 +2,9 @@
 """
 price_sheet: model prices for total-cards lines on upcoming fixtures, and manual bet logging.
 
-For each scheduled match in the next --days, projects match cards with the PCR model from
-value_finder and prices Over/Under lines (default 2.5 to 6.5 in 0.5 steps). Whole-number
-lines can push; prices account for that:
+For each scheduled match in the next --days, projects match cards with the model from
+value_finder, counting cards the way --book (default Sky Bet) settles them, and prices Over/Under
+lines (default 2.5 to 6.5 in 0.5 steps). Whole-number lines can push; prices account for that:
     fair odds      = (1 - p_push) / p_win             (EV = 0)
     min odds +EV   = (1 + min_ev - p_push) / p_win    (EV = min_ev)
 Matches with no appointed referee use the league average for the referee term and are
@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo
 
 from collect_cards import DB, TeamResolver
 from settle import settle
-from value_finder import (DEFAULT_WEIGHTS, ISO, Config, Projector, is_quarter_line, side_probs,
+from value_finder import (DEFAULT_WEIGHTS, ISO, Config, Projector, Weights, is_quarter_line, side_probs,
                           weights_for)
 
 log = logging.getLogger("price_sheet")
@@ -67,8 +67,19 @@ def odds_for(p_win: float, p_push: float, ev: float) -> float | None:
 
 
 # ───────────────────────────── Price sheet ─────────────────────────────
-def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_ev: float) -> dict:
-    w = DEFAULT_WEIGHTS["cards"]
+def book_weights(con: sqlite3.Connection, book: str) -> Weights:
+    """The book's TOTAL_CARDS settlement rule, or the default card weights if it has none."""
+    row = con.execute("""SELECT r.w_yellow, r.w_second_yellow, r.w_straight_red FROM settlement_rules r
+                         JOIN bookmakers b USING (bookmaker_id) JOIN markets m USING (market_id)
+                         WHERE b.name = ? COLLATE NOCASE AND m.code = 'TOTAL_CARDS'""", (book,)).fetchone()
+    if row is None:
+        log.warning("No TOTAL_CARDS settlement rule for %r; pricing with default card weights", book)
+        return DEFAULT_WEIGHTS["cards"]
+    return Weights(*row)
+
+
+def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_ev: float,
+                w: Weights = DEFAULT_WEIGHTS["cards"]) -> dict:
     out = dict(match_id=fx["match_id"], kickoff_utc=fx["kickoff_utc"], league=fx["league"],
                fixture=f"{fx['home']} v {fx['away']}", referee=fx["referee"],
                provisional=fx["referee_id"] is None,
@@ -366,6 +377,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="log a bet placed in the past (UK time); model priced as of then, settles if finished")
     ap.add_argument("--adjusted-p", type=float, help="your research-adjusted probability (0.45 or 45)")
     ap.add_argument("--reason", help="why you adjusted the model probability")
+    ap.add_argument("--book", default="Sky Bet", help="price under this bookmaker's card settlement rules")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -393,12 +405,17 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print_logged(r)
             return 0
-        sheet = [price_match(projector, fx, sorted(args.lines), args.min_ev)
+        w = book_weights(db.con, args.book)
+        sheet = [price_match(projector, fx, sorted(args.lines), args.min_ev, w)
                  for fx in fixtures(db.con, now, args.days)]
         if args.json:
-            print(json.dumps({"generated_at": now.strftime(ISO), "min_ev": args.min_ev,
+            print(json.dumps({"generated_at": now.strftime(ISO), "min_ev": args.min_ev, "book": args.book,
+                              "card_weights": dict(yellow=w.yellow, second_yellow=w.second_yellow,
+                                                   straight_red=w.straight_red),
                               "matches": sheet}, indent=2))
         else:
+            print(f"Priced under {args.book} card rules: yellow {w.yellow:g}, second yellow "
+                  f"{w.second_yellow:g}, straight red {w.straight_red:g}")
             print_sheet(sheet, args.min_ev)
     finally:
         db.con.close()

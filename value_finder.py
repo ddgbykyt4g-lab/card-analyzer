@@ -32,7 +32,7 @@ from typing import Callable
 log = logging.getLogger("value_finder")
 ISO = "%Y-%m-%dT%H:%M:%SZ"
 MODEL_VERSION = "pcr-v1"
-MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v1"}
+MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v2"}  # v2: GLM refitted in each book's card units
 
 
 # ───────────────────────────── Config & types ─────────────────────────────
@@ -262,20 +262,30 @@ class Projector:
     without it, or for a match it can't see, this falls back to the PCR average."""
 
     def __init__(self, con: sqlite3.Connection, cfg: Config, now: datetime):
-        self.stats, self.cfg, self.glm = Stats(con, cfg), cfg, None
+        self.stats, self.cfg, self.con, self.asof = Stats(con, cfg), cfg, con, now.strftime(ISO)
+        self.glm: dict | None = None  # one fit per card weighting, built on first use
         self.version = MODEL_VERSIONS["pcr"]
         if cfg.model == "glm":
             if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'").fetchone():
-                from glm_model import GLMPredictor  # lazy: glm_model imports this module
-                self.glm = GLMPredictor(con, now.strftime(ISO))
+                self.glm = {}
                 self.version = MODEL_VERSIONS["glm"]
             else:
                 log.warning("match_prices missing (migration 001); using the PCR model")
 
+    def _glm(self, w: Weights):
+        """GLM fitted in this book's card units (weights / yellow weight). Units that aren't whole card
+        counts (booking points 10/25 -> 1/2.5) use the default 1/1/2 fit, scaled by the yellow weight."""
+        from glm_model import GLMPredictor  # lazy: glm_model imports this module
+        unit = Weights(1, w.second_yellow / w.yellow, w.straight_red / w.yellow)
+        if any(x != int(x) for x in (unit.second_yellow, unit.straight_red)):
+            unit = DEFAULT_WEIGHTS["cards"]
+        if unit not in self.glm:
+            self.glm[unit] = GLMPredictor(self.con, self.asof, weights=unit)
+        return self.glm[unit]
+
     def price(self, fx: sqlite3.Row, w: Weights) -> Priced | None:
         scale = w.yellow
-        if self.glm and (g := self.glm.predict(fx["match_id"])):
-            # GLM is fitted in card units (1/1/2); other settlement weights are approximated by scale
+        if self.glm is not None and (g := self._glm(w).predict(fx["match_id"])):
             size = g["size"]
             return Priced(g["mean"] * scale, make_pmf(g["mean"], size), scale,
                           f"GLM H {g['home']:.2f} A {g['away']:.2f}"

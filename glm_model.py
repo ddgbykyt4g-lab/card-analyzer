@@ -2,7 +2,8 @@
 """
 glm_model: team-level card regression (alternative to the PCR average).
 
-For each team in each match, cards (settlement weights: yellow 1, second yellow 1, red 2) are
+For each team in each match, cards (default weights: yellow 1, second yellow 1, red 2; pricing refits
+with the bookmaker's card weights, e.g. Sky Bet's straight red 1) are
 modelled as Poisson with
     log mu = league + home*is_home + disc[team] + prov[opponent] + ref[referee]
              + b_gap*(p_own - p_opp) + b_abs*|p_own - p_opp| + b_draw*p_draw
@@ -49,7 +50,8 @@ class GLMConfig:
 class Data:
     """Two rows per match (home team, away team) with index columns for the design matrix."""
 
-    def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False, rest: bool = False):
+    def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False, rest: bool = False,
+                 weights=W):
         status = "('finished','scheduled')" if include_scheduled else "('finished')"
         rows = con.execute(f"""
             SELECT m.match_id, m.kickoff_utc, m.status, s.league_id, s.label, l.code,
@@ -107,7 +109,7 @@ class Data:
             self.feat = np.column_stack([self.feat, rest_features(con, rows)])
 
         def cards(y, y2, r):
-            return W.yellow * (y or 0) + W.second_yellow * (y2 or 0) + W.straight_red * (r or 0)
+            return weights.yellow * (y or 0) + weights.second_yellow * (y2 or 0) + weights.straight_red * (r or 0)
         self.y = np.array([[cards(*r[12:15]), cards(*r[15:18])] for r in rows], dtype=float).ravel()
 
     def design(self, team_rows: np.ndarray) -> np.ndarray:
@@ -212,8 +214,8 @@ class CardGLM:
 class GLMPredictor:
     """Fits once on every finished match before `asof`, then predicts any loaded match."""
 
-    def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig()):
-        self.d = Data(con, include_scheduled=True, rest=cfg.rest)
+    def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig(), weights=W):
+        self.d = Data(con, include_scheduled=True, rest=cfg.rest, weights=weights)
         day = int(np.datetime64(asof[:10], "D").astype(int))
         train = np.where(self.d.finished & (self.d.day < day))[0]
         self.model = CardGLM(self.d, cfg).fit(train, day)
