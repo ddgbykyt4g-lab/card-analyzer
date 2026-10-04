@@ -1,5 +1,17 @@
 # card-analyzer
 
+**On your phone:** [📊 This week's prices](reports/latest.md) · [➕ Log a bet](../../actions/workflows/log-bet.yml)
+
+### Using it from the GitHub app
+- **Prices:** open `reports/latest.md` (the link above). It updates every Saturday morning and after each
+  bet you log. Each match shows the lowest odds worth taking; take a price at or above them.
+- **Log a bet:** Actions → *Log a bet* → *Run workflow*. Type the bet with the odds and stake you got,
+  e.g. `Arsenal v Leeds: Leeds over 1.5 @ 2.10 Sky Bet £10`, or paste the research line with your
+  odds and stake filled in. Your phone gets "Bet logged" or "Bet NOT logged" within about a minute.
+  Tap *Run workflow* once only: a second tap logs the bet twice.
+- **Shop bets:** same, with the shop as bookmaker (`Coral shop £10`). If the match has already kicked
+  off, fill in *placed* with when you placed it (`2026-10-10 11:30`, UK time).
+
 ## Saturday routine (free)
 
 1. GitHub Actions runs `.github/workflows/saturday.yml` each Saturday at 07:17 UK (06:17 in winter):

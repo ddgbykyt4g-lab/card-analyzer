@@ -1,0 +1,88 @@
+# Log a bet you placed, from your phone: GitHub app > Actions > Log a bet > Run workflow.
+# Records it with price_sheet.py --log-bet (never places anything), refreshes reports/latest.md,
+# pushes, and confirms on your phone.
+name: Log a bet
+
+on:
+  workflow_dispatch:
+    inputs:
+      bet:
+        description: 'Bet, e.g. "Arsenal v Leeds: Leeds over 1.5 @ 2.10 Sky Bet £10" or the research line with your odds and stake'
+        required: true
+        type: string
+      placed:
+        description: 'Only if the match has kicked off: when you placed it, UK time "YYYY-MM-DD HH:MM"'
+        required: false
+        type: string
+      adjusted_p:
+        description: "Optional: your research-adjusted probability (0.45 or 45)"
+        required: false
+        type: string
+      reason:
+        description: "Optional: why you adjusted it"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cards-db
+  cancel-in-progress: false
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -q -r requirements.txt   # no browser needed to log a bet
+
+      - name: Log the bet
+        env:
+          BET: ${{ inputs.bet }}
+          PLACED: ${{ inputs.placed }}
+          ADJ: ${{ inputs.adjusted_p }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          args=(--db cards.db --log-bet "$BET")
+          [ -n "$PLACED" ] && args+=(--placed "$PLACED")
+          [ -n "$ADJ" ] && args+=(--adjusted-p "$ADJ")
+          [ -n "$REASON" ] && args+=(--reason "$REASON")
+          python price_sheet.py "${args[@]}" 2>&1 | tee /tmp/logged.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Refresh dashboard
+        run: |
+          python price_sheet.py --db cards.db --days 2 --json > /tmp/sheet.json
+          python agent/dashboard.py /tmp/sheet.json cards.db > reports/latest.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cards.db reports/latest.md
+          git commit -q -m "Log bet: $(head -1 /tmp/logged.txt | cut -c1-120)"
+          git pull -q --rebase origin main && git push -q origin HEAD:main
+          { echo '```'; cat /tmp/logged.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Confirm on phone
+        if: always()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          if [ "$OUTCOME" = "success" ]; then
+            agent/notify.sh "Bet logged" "$(cat /tmp/logged.txt)"
+          else
+            agent/notify.sh "Bet NOT logged" "$(tail -3 /tmp/logged.txt 2>/dev/null || echo 'See the Actions tab.') Check the wording and try again."
+          fi

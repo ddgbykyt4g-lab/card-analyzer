@@ -33,7 +33,11 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 - `.github/workflows/saturday.yml` runs each Saturday at 07:17 UK (06:17 in winter) without Claude:
   collector, settle, price sheet saved to `reports/<date>-prices.md`, push, then a phone alert built by
   `agent/free_summary.py` (overs at +8% EV). No team-news research. Needs the `NTFY_TOPIC` repo secret;
-  run it by hand from the Actions tab (`workflow_dispatch`).
+  run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
+  `reports/latest.md` (`agent/dashboard.py`).
+- `.github/workflows/log-bet.yml`: logs a bet from the GitHub app (inputs: bet, placed, adjusted_p,
+  reason), refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
+  `cards-db` concurrency group so they never push `cards.db` at the same time.
 
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent

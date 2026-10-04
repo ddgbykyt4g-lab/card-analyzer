@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: saturday
+  group: cards-db
   cancel-in-progress: false
 
 jobs:
@@ -69,6 +69,11 @@ jobs:
             cat /tmp/settle.txt
             echo '```'
           } > "reports/$day-prices.md"
+
+      - name: Phone dashboard
+        run: |
+          python agent/dashboard.py /tmp/sheet.json cards.db > reports/latest.md
+          cat reports/latest.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
         run: |
