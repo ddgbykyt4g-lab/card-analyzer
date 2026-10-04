@@ -1,0 +1,91 @@
+# Free Saturday run (no Claude): update data, settle bets, price today's matches, save the sheet to
+# reports/, push, then send the phone alert. Team-news research is left to you.
+# Needs the repository secret NTFY_TOPIC (Settings > Secrets and variables > Actions).
+name: Saturday price sheet
+
+on:
+  schedule:
+    - cron: "17 6 * * 6"   # 07:17 UK in summer, 06:17 in winter (GitHub cron is UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saturday
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -q -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Season label
+        id: season
+        run: |
+          python - >> "$GITHUB_OUTPUT" <<'PY'
+          from datetime import date
+          d = date.today()
+          y = d.year if d.month >= 8 else d.year - 1
+          print(f"label={y}-{str(y + 1)[2:]}")
+          print(f"day={d.isoformat()}")
+          PY
+
+      - name: Collect data and settle bets
+        run: |
+          python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups
+          python settle.py --db cards.db --report | tee /tmp/settle.txt
+
+      - name: Price sheet
+        run: |
+          python price_sheet.py --db cards.db --days 2 --json > /tmp/sheet.json
+          day=${{ steps.season.outputs.day }}
+          {
+            echo "# Price sheet $day (automatic, no team-news research)"
+            echo
+            echo "Overs: take only at about +8-10% EV. Log what you bet with price_sheet.py --log-bet."
+            echo
+            echo '```'
+            python price_sheet.py --db cards.db --days 2
+            echo '```'
+            echo
+            echo "## Track record"
+            echo
+            echo '```'
+            cat /tmp/settle.txt
+            echo '```'
+          } > "reports/$day-prices.md"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cards.db reports/
+          git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
+          git pull -q --rebase origin main && git push -q origin HEAD:main
+
+      - name: Phone alert
+        if: always()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ -s /tmp/sheet.json ]; then
+            python agent/free_summary.py /tmp/sheet.json /tmp/settle.txt > /tmp/alert.txt
+            agent/notify.sh "Cards ${{ steps.season.outputs.day }}" "$(cat /tmp/alert.txt)"
+          else
+            agent/notify.sh "Cards ${{ steps.season.outputs.day }}: run failed" "The Saturday run failed before pricing. See the Actions tab on GitHub."
+          fi

@@ -29,6 +29,12 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   It then sends a phone alert with `agent/notify.sh` (ntfy.sh; private topic in the `NTFY_TOPIC`
   environment variable, never written to files).
 
+## Free Saturday run (GitHub Actions)
+- `.github/workflows/saturday.yml` runs each Saturday at 07:17 UK (06:17 in winter) without Claude:
+  collector, settle, price sheet saved to `reports/<date>-prices.md`, push, then a phone alert built by
+  `agent/free_summary.py` (overs at +8% EV). No team-news research. Needs the `NTFY_TOPIC` repo secret;
+  run it by hand from the Actions tab (`workflow_dispatch`).
+
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
