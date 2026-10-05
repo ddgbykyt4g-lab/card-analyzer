@@ -1,0 +1,48 @@
+# One-off: fill missing past referees from ESPN on a COPY of cards.db and push them as CSV to the
+# referee-backfill branch for review. Never changes cards.db or main.
+name: Backfill referees (one-off)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -q -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Backfill on a copy
+        run: |
+          cp cards.db /tmp/refs.db
+          pairs=""
+          for l in LALIGA SERIEA BUNDES LIGUE1; do
+            for s in 2021-22 2022-23 2023-24 2024-25 2025-26; do pairs="$pairs $l:$s"; done
+          done
+          python agent/backfill_referees.py /tmp/refs.db /tmp/referees.csv $pairs 2>&1 | grep -v " HTTP " | tail -40
+
+      - name: Push CSV to the referee-backfill branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan referee-backfill
+          git rm -rq --cached .
+          mkdir -p data && cp /tmp/referees.csv data/referees_backfill.csv
+          git add data/referees_backfill.csv
+          git commit -q -m "Referee backfill from ESPN ($(($(wc -l < data/referees_backfill.csv) - 1)) matches)"
+          git push -q -f origin HEAD:referee-backfill
