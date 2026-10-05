@@ -3258,7 +3258,251 @@ SERIEA,2023-24,2023-12-02T14:00:00Z,Genoa,Empoli,Gianluca Aureliano,Italy,espn:6
 SERIEA,2023-24,2023-12-02T17:00:00Z,Lazio,Cagliari,Federico Dionisi,Italy,espn:679351
 SERIEA,2023-24,2023-12-02T19:45:00Z,Milan,Frosinone,Matteo Marchetti,Italy,espn:679352
 SERIEA,2023-24,2023-12-03T11:30:00Z,Lecce,Bologna,Daniele Doveri,Italy,espn:679350
+SERIEA,2023-24,2023-12-03T14:00:00Z,Udinese,Verona,Fabio Maresca,Italy,espn:679357
 SERIEA,2023-24,2023-12-03T14:00:00Z,Fiorentina,Salernitana,Paride Tremolada,Italy,espn:679358
+SERIEA,2023-24,2023-12-03T17:00:00Z,Sassuolo,Roma,Matteo Marcenaro,Italy,espn:679354
+SERIEA,2023-24,2023-12-03T19:45:00Z,Napoli,Inter,Davide Massa,Italy,espn:679355
+SERIEA,2023-24,2023-12-04T19:45:00Z,Torino,Atalanta,Marco Piccinini,Italy,espn:679353
+SERIEA,2023-24,2023-12-08T19:45:00Z,Juventus,Napoli,Daniele Orsato,Italy,espn:679369
+SERIEA,2023-24,2023-12-09T14:00:00Z,Verona,Lazio,Giovanni Ayroldi,Italy,espn:679364
+SERIEA,2023-24,2023-12-09T17:00:00Z,Atalanta,Milan,Federico La Penna,Italy,espn:679360
+SERIEA,2023-24,2023-12-09T19:45:00Z,Inter,Udinese,Marco Di Bello,Italy,espn:679365
+SERIEA,2023-24,2023-12-10T11:30:00Z,Frosinone,Torino,Luca Massimi,Italy,espn:679366
+SERIEA,2023-24,2023-12-10T14:00:00Z,Monza,Genoa,Giuseppe Collu,Italy,espn:679363
+SERIEA,2023-24,2023-12-10T17:00:00Z,Salernitana,Bologna,Simone Sozza,Italy,espn:679361
+SERIEA,2023-24,2023-12-10T19:45:00Z,Roma,Fiorentina,Antonio Rapuano,Italy,espn:679362
+SERIEA,2023-24,2023-12-11T17:30:00Z,Empoli,Lecce,Andrea Colombo,Italy,espn:679367
+SERIEA,2023-24,2023-12-11T19:45:00Z,Cagliari,Sassuolo,Maurizio Mariani,Italy,espn:679368
+SERIEA,2023-24,2023-12-15T19:45:00Z,Genoa,Juventus,Davide Massa,Italy,espn:679373
+SERIEA,2023-24,2023-12-16T14:00:00Z,Lecce,Frosinone,Luca Zufferli,Italy,espn:679379
+SERIEA,2023-24,2023-12-16T17:00:00Z,Napoli,Cagliari,Matteo Marcenaro,Italy,espn:679377
+SERIEA,2023-24,2023-12-16T19:45:00Z,Torino,Empoli,Livio Marinelli,Italy,espn:679376
+SERIEA,2023-24,2023-12-17T11:30:00Z,Milan,Monza,Gianluca Aureliano,Italy,espn:679378
+SERIEA,2023-24,2023-12-17T14:00:00Z,Udinese,Sassuolo,Gianluca Manganiello,Italy,espn:679374
+SERIEA,2023-24,2023-12-17T14:00:00Z,Fiorentina,Verona,Maria Ferrieri Caputi,Italy,espn:679372
+SERIEA,2023-24,2023-12-17T17:00:00Z,Bologna,Roma,Marco Guida,Italy,espn:679371
+SERIEA,2023-24,2023-12-17T19:45:00Z,Lazio,Inter,Fabio Maresca,Italy,espn:679375
+SERIEA,2023-24,2023-12-18T19:45:00Z,Atalanta,Salernitana,Ermanno Feliciani,Italy,espn:679370
+SERIEA,2023-24,2023-12-22T17:30:00Z,Sassuolo,Genoa,Marco Guida,Italy,espn:679384
+SERIEA,2023-24,2023-12-22T17:30:00Z,Empoli,Lazio,Matteo Marchetti,Italy,espn:679389
+SERIEA,2023-24,2023-12-22T19:45:00Z,Salernitana,Milan,Daniele Doveri,Italy,espn:679383
+SERIEA,2023-24,2023-12-22T19:45:00Z,Monza,Fiorentina,Juan Luca Sacchi,Italy,espn:679387
+SERIEA,2023-24,2023-12-23T11:30:00Z,Frosinone,Juventus,Maurizio Mariani,Italy,espn:679381
+SERIEA,2023-24,2023-12-23T14:00:00Z,Torino,Udinese,Michael Fabbri,Italy,espn:679385
+SERIEA,2023-24,2023-12-23T14:00:00Z,Bologna,Atalanta,Antonio Rapuano,Italy,espn:679388
+SERIEA,2023-24,2023-12-23T17:00:00Z,Inter,Lecce,Matteo Marcenaro,Italy,espn:679380
+SERIEA,2023-24,2023-12-23T17:00:00Z,Verona,Cagliari,Daniele Orsato,Italy,espn:679386
+SERIEA,2023-24,2023-12-23T19:45:00Z,Roma,Napoli,Andrea Colombo,Italy,espn:679382
+SERIEA,2023-24,2023-12-29T17:30:00Z,Napoli,Monza,Marco Di Bello,Italy,espn:679392
+SERIEA,2023-24,2023-12-29T17:30:00Z,Fiorentina,Torino,Federico La Penna,Italy,espn:679397
+SERIEA,2023-24,2023-12-29T19:45:00Z,Genoa,Inter,Daniele Doveri,Italy,espn:679396
+SERIEA,2023-24,2023-12-29T19:45:00Z,Lazio,Frosinone,Ermanno Feliciani,Italy,espn:679399
+SERIEA,2023-24,2023-12-30T11:30:00Z,Atalanta,Lecce,Gianluca Manganiello,Italy,espn:679390
+SERIEA,2023-24,2023-12-30T14:00:00Z,Udinese,Bologna,Daniele Orsato,Italy,espn:679394
+SERIEA,2023-24,2023-12-30T14:00:00Z,Cagliari,Empoli,Fabio Maresca,Italy,espn:679398
+SERIEA,2023-24,2023-12-30T17:00:00Z,Verona,Salernitana,Maurizio Mariani,Italy,espn:679391
+SERIEA,2023-24,2023-12-30T17:00:00Z,Milan,Sassuolo,Livio Marinelli,Italy,espn:679393
+SERIEA,2023-24,2023-12-30T19:45:00Z,Juventus,Roma,Simone Sozza,Italy,espn:679395
+SERIEA,2023-24,2024-01-05T19:45:00Z,Bologna,Genoa,Andrea Colombo,Italy,espn:679408
+SERIEA,2023-24,2024-01-06T11:30:00Z,Inter,Verona,Michael Fabbri,Italy,espn:679405
+SERIEA,2023-24,2024-01-06T14:00:00Z,Frosinone,Monza,Maria Ferrieri Caputi,Italy,espn:679406
+SERIEA,2023-24,2024-01-06T17:00:00Z,Lecce,Cagliari,Davide Massa,Italy,espn:679409
+SERIEA,2023-24,2024-01-06T19:45:00Z,Sassuolo,Fiorentina,Rosario Abisso,Italy,espn:679401
+SERIEA,2023-24,2024-01-07T11:30:00Z,Empoli,Milan,Federico La Penna,Italy,espn:679407
+SERIEA,2023-24,2024-01-07T14:00:00Z,Torino,Napoli,Maurizio Mariani,Italy,espn:679400
+SERIEA,2023-24,2024-01-07T14:00:00Z,Udinese,Lazio,Juan Luca Sacchi,Italy,espn:679404
+SERIEA,2023-24,2024-01-07T17:00:00Z,Salernitana,Juventus,Marco Guida,Italy,espn:679402
+SERIEA,2023-24,2024-01-07T19:45:00Z,Roma,Atalanta,Gianluca Aureliano,Italy,espn:679403
+SERIEA,2023-24,2024-01-13T14:00:00Z,Genoa,Torino,Antonio Giua,Italy,espn:679415
+SERIEA,2023-24,2024-01-13T14:00:00Z,Napoli,Salernitana,Livio Marinelli,Italy,espn:679413
+SERIEA,2023-24,2024-01-13T17:00:00Z,Verona,Empoli,Daniele Doveri,Italy,espn:679414
+SERIEA,2023-24,2024-01-13T19:45:00Z,Monza,Inter,Antonio Rapuano,Italy,espn:679412
+SERIEA,2023-24,2024-01-14T11:30:00Z,Lazio,Lecce,Maria Ferrieri Caputi,Italy,espn:679410
+SERIEA,2023-24,2024-01-14T14:00:00Z,Cagliari,Bologna,Gianluca Manganiello,Italy,espn:679417
+SERIEA,2023-24,2024-01-14T17:00:00Z,Fiorentina,Udinese,Luca Pairetto,Italy,espn:679416
+SERIEA,2023-24,2024-01-14T19:45:00Z,Milan,Roma,Marco Guida,Italy,espn:679411
+SERIEA,2023-24,2024-01-15T19:45:00Z,Atalanta,Frosinone,Alessandro Prontera,Italy,espn:679418
+SERIEA,2023-24,2024-01-16T19:45:00Z,Juventus,Sassuolo,Marco Piccinini,Italy,espn:679419
+SERIEA,2023-24,2024-01-20T17:00:00Z,Roma,Verona,Juan Luca Sacchi,Italy,espn:679428
+SERIEA,2023-24,2024-01-20T19:45:00Z,Udinese,Milan,Fabio Maresca,Italy,espn:679421
+SERIEA,2023-24,2024-01-21T11:30:00Z,Frosinone,Cagliari,Federico Dionisi,Italy,espn:679425
+SERIEA,2023-24,2024-01-21T14:00:00Z,Empoli,Monza,Antonio Giua,Italy,espn:679422
+SERIEA,2023-24,2024-01-21T17:00:00Z,Salernitana,Genoa,Daniele Orsato,Italy,espn:679429
+SERIEA,2023-24,2024-01-21T19:45:00Z,Lecce,Juventus,Daniele Doveri,Italy,espn:679427
+SERIEA,2023-24,2024-01-26T19:45:00Z,Cagliari,Torino,Andrea Colombo,Italy,espn:679439
+SERIEA,2023-24,2024-01-27T14:00:00Z,Atalanta,Udinese,Marco Piccinini,Italy,espn:679430
+SERIEA,2023-24,2024-01-27T17:00:00Z,Juventus,Empoli,Livio Marinelli,Italy,espn:679437
+SERIEA,2023-24,2024-01-27T19:45:00Z,Milan,Bologna,Davide Massa,Italy,espn:679433
+SERIEA,2023-24,2024-01-28T11:30:00Z,Genoa,Lecce,Luca Pairetto,Italy,espn:679436
+SERIEA,2023-24,2024-01-28T14:00:00Z,Verona,Frosinone,Federico La Penna,Italy,espn:679438
+SERIEA,2023-24,2024-01-28T14:00:00Z,Monza,Sassuolo,Gianluca Manganiello,Italy,espn:679432
+SERIEA,2023-24,2024-01-28T17:00:00Z,Lazio,Napoli,Daniele Orsato,Italy,espn:679434
+SERIEA,2023-24,2024-01-28T19:45:00Z,Fiorentina,Inter,Gianluca Aureliano,Italy,espn:679435
+SERIEA,2023-24,2024-01-29T19:45:00Z,Salernitana,Roma,Marco Di Bello,Italy,espn:679431
+SERIEA,2023-24,2024-02-02T19:45:00Z,Lecce,Fiorentina,Antonio Giua,Italy,espn:679449
+SERIEA,2023-24,2024-02-03T14:00:00Z,Empoli,Genoa,Ermanno Feliciani,Italy,espn:679441
+SERIEA,2023-24,2024-02-03T14:00:00Z,Udinese,Monza,Alessandro Prontera,Italy,espn:679448
+SERIEA,2023-24,2024-02-03T17:00:00Z,Frosinone,Milan,Luca Pairetto,Italy,espn:679447
+SERIEA,2023-24,2024-02-03T19:45:00Z,Bologna,Sassuolo,Juan Luca Sacchi,Italy,espn:679440
+SERIEA,2023-24,2024-02-04T11:30:00Z,Torino,Salernitana,Daniele Chiffi,Italy,espn:679442
+SERIEA,2023-24,2024-02-04T14:00:00Z,Napoli,Verona,Marco Piccinini,Italy,espn:679445
+SERIEA,2023-24,2024-02-04T17:00:00Z,Atalanta,Lazio,Marco Guida,Italy,espn:679444
+SERIEA,2023-24,2024-02-04T19:45:00Z,Inter,Juventus,Fabio Maresca,Italy,espn:679443
+SERIEA,2023-24,2024-02-05T19:45:00Z,Roma,Cagliari,Matteo Marcenaro,Italy,espn:679446
+SERIEA,2023-24,2024-02-09T19:45:00Z,Salernitana,Empoli,Maurizio Mariani,Italy,espn:679450
+SERIEA,2023-24,2024-02-10T14:00:00Z,Cagliari,Lazio,Marco Di Bello,Italy,espn:679459
+SERIEA,2023-24,2024-02-10T17:00:00Z,Roma,Inter,Marco Guida,Italy,espn:679451
+SERIEA,2023-24,2024-02-10T19:45:00Z,Sassuolo,Torino,Daniele Orsato,Italy,espn:679454
+SERIEA,2023-24,2024-02-11T11:30:00Z,Fiorentina,Frosinone,Ermanno Feliciani,Italy,espn:679455
+SERIEA,2023-24,2024-02-11T14:00:00Z,Bologna,Lecce,Gianluca Manganiello,Italy,espn:679453
+SERIEA,2023-24,2024-02-11T14:00:00Z,Monza,Verona,Davide Massa,Italy,espn:679452
+SERIEA,2023-24,2024-02-11T17:00:00Z,Genoa,Atalanta,Andrea Colombo,Italy,espn:679456
+SERIEA,2023-24,2024-02-11T19:45:00Z,Milan,Napoli,Daniele Doveri,Italy,espn:679458
+SERIEA,2023-24,2024-02-12T19:45:00Z,Juventus,Udinese,Rosario Abisso,Italy,espn:679457
+SERIEA,2023-24,2024-02-14T18:00:00Z,Bologna,Fiorentina,Daniele Chiffi,Italy,espn:679423
+SERIEA,2023-24,2024-02-16T18:00:00Z,Torino,Lecce,Giovanni Ayroldi,Italy,espn:679469
+SERIEA,2023-24,2024-02-16T20:00:00Z,Inter,Salernitana,Marco Piccinini,Italy,espn:679467
+SERIEA,2023-24,2024-02-17T14:00:00Z,Napoli,Genoa,Juan Luca Sacchi,Italy,espn:679468
+SERIEA,2023-24,2024-02-17T17:00:00Z,Verona,Juventus,Marco Di Bello,Italy,espn:679460
+SERIEA,2023-24,2024-02-17T19:45:00Z,Atalanta,Sassuolo,Alessandro Prontera,Italy,espn:679462
+SERIEA,2023-24,2024-02-18T11:30:00Z,Lazio,Bologna,Fabio Maresca,Italy,espn:679466
+SERIEA,2023-24,2024-02-18T14:00:00Z,Empoli,Fiorentina,Luca Pairetto,Italy,espn:679463
+SERIEA,2023-24,2024-02-18T14:00:00Z,Udinese,Cagliari,Maurizio Mariani,Italy,espn:679461
+SERIEA,2023-24,2024-02-18T17:00:00Z,Frosinone,Roma,Antonio Giua,Italy,espn:679464
+SERIEA,2023-24,2024-02-18T19:45:00Z,Monza,Milan,Andrea Colombo,Italy,espn:679465
+SERIEA,2023-24,2024-02-22T19:45:00Z,Torino,Lazio,Federico La Penna,Italy,espn:679420
+SERIEA,2023-24,2024-02-23T19:45:00Z,Bologna,Verona,Rosario Abisso,Italy,espn:679479
+SERIEA,2023-24,2024-02-24T14:00:00Z,Sassuolo,Empoli,Gianluca Aureliano,Italy,espn:679475
+SERIEA,2023-24,2024-02-24T17:00:00Z,Salernitana,Monza,Michael Fabbri,Italy,espn:679471
+SERIEA,2023-24,2024-02-24T19:45:00Z,Genoa,Udinese,Francesco Fourneau,Italy,espn:679477
+SERIEA,2023-24,2024-02-25T11:30:00Z,Juventus,Frosinone,Antonio Rapuano,Italy,espn:679478
+SERIEA,2023-24,2024-02-25T14:00:00Z,Cagliari,Napoli,Luca Pairetto,Italy,espn:679474
+SERIEA,2023-24,2024-02-25T17:00:00Z,Lecce,Inter,Daniele Doveri,Italy,espn:679470
+SERIEA,2023-24,2024-02-25T19:45:00Z,Milan,Atalanta,Daniele Orsato,Italy,espn:679473
+SERIEA,2023-24,2024-02-26T17:30:00Z,Roma,Torino,Juan Luca Sacchi,Italy,espn:679472
+SERIEA,2023-24,2024-02-26T19:45:00Z,Fiorentina,Lazio,Marco Guida,Italy,espn:679476
+SERIEA,2023-24,2024-02-28T17:00:00Z,Sassuolo,Napoli,Daniele Chiffi,Italy,espn:679424
+SERIEA,2023-24,2024-02-28T19:45:00Z,Inter,Atalanta,Andrea Colombo,Italy,espn:679426
+SERIEA,2023-24,2024-03-01T19:45:00Z,Lazio,Milan,Marco Di Bello,Italy,espn:679484
+SERIEA,2023-24,2024-03-02T14:00:00Z,Udinese,Salernitana,Gianluca Manganiello,Italy,espn:679480
+SERIEA,2023-24,2024-03-02T17:00:00Z,Monza,Roma,Marco Piccinini,Italy,espn:679483
+SERIEA,2023-24,2024-03-02T19:45:00Z,Torino,Fiorentina,Matteo Marchetti,Italy,espn:679481
+SERIEA,2023-24,2024-03-03T11:30:00Z,Verona,Sassuolo,Fabio Maresca,Italy,espn:679489
+SERIEA,2023-24,2024-03-03T14:00:00Z,Empoli,Cagliari,Antonio Rapuano,Italy,espn:679487
+SERIEA,2023-24,2024-03-03T14:00:00Z,Frosinone,Lecce,Marco Guida,Italy,espn:679486
+SERIEA,2023-24,2024-03-03T17:00:00Z,Atalanta,Bologna,Federico La Penna,Italy,espn:679488
+SERIEA,2023-24,2024-03-03T19:45:00Z,Napoli,Juventus,Maurizio Mariani,Italy,espn:679482
+SERIEA,2023-24,2024-03-04T19:45:00Z,Inter,Genoa,Giovanni Ayroldi,Italy,espn:679485
+SERIEA,2023-24,2024-03-08T19:45:00Z,Napoli,Torino,Daniele Orsato,Italy,espn:679490
+SERIEA,2023-24,2024-03-09T14:00:00Z,Sassuolo,Frosinone,Federico La Penna,Italy,espn:679119
+SERIEA,2023-24,2024-03-09T14:00:00Z,Cagliari,Salernitana,Francesco Fourneau,Italy,espn:679117
+SERIEA,2023-24,2024-03-09T17:00:00Z,Bologna,Inter,Luca Pairetto,Italy,espn:679118
+SERIEA,2023-24,2024-03-09T19:45:00Z,Genoa,Monza,Ermanno Feliciani,Italy,espn:679495
+SERIEA,2023-24,2024-03-10T11:30:00Z,Lecce,Verona,Daniele Chiffi,Italy,espn:679492
+SERIEA,2023-24,2024-03-10T14:00:00Z,Milan,Empoli,Juan Luca Sacchi,Italy,espn:679491
+SERIEA,2023-24,2024-03-10T17:00:00Z,Juventus,Atalanta,Marco Guida,Italy,espn:679494
+SERIEA,2023-24,2024-03-10T19:45:00Z,Fiorentina,Roma,Davide Massa,Italy,espn:679116
+SERIEA,2023-24,2024-03-11T19:45:00Z,Lazio,Udinese,Gianluca Aureliano,Italy,espn:679493
+SERIEA,2023-24,2024-03-15T19:45:00Z,Empoli,Bologna,Michael Fabbri,Italy,espn:679121
+SERIEA,2023-24,2024-03-16T14:00:00Z,Udinese,Torino,Andrea Colombo,Italy,espn:679123
+SERIEA,2023-24,2024-03-16T14:00:00Z,Monza,Cagliari,Matteo Marcenaro,Italy,espn:679126
+SERIEA,2023-24,2024-03-16T17:00:00Z,Salernitana,Lecce,Fabio Maresca,Italy,espn:679124
+SERIEA,2023-24,2024-03-16T19:45:00Z,Frosinone,Lazio,Antonio Rapuano,Italy,espn:679129
+SERIEA,2023-24,2024-03-17T11:30:00Z,Juventus,Genoa,Antonio Giua,Italy,espn:679127
+SERIEA,2023-24,2024-03-17T14:00:00Z,Verona,Milan,Maurizio Mariani,Italy,espn:679122
+SERIEA,2023-24,2024-03-17T17:00:00Z,Roma,Sassuolo,Gianluca Manganiello,Italy,espn:679125
+SERIEA,2023-24,2024-03-17T19:45:00Z,Inter,Napoli,Federico La Penna,Italy,espn:679128
+SERIEA,2023-24,2024-03-30T11:30:00Z,Napoli,Atalanta,Luca Pairetto,Italy,espn:679132
+SERIEA,2023-24,2024-03-30T14:00:00Z,Genoa,Frosinone,Juan Luca Sacchi,Italy,espn:679136
+SERIEA,2023-24,2024-03-30T14:00:00Z,Torino,Monza,Gianluca Aureliano,Italy,espn:679134
+SERIEA,2023-24,2024-03-30T17:00:00Z,Lazio,Juventus,Andrea Colombo,Italy,espn:679139
+SERIEA,2023-24,2024-03-30T19:45:00Z,Fiorentina,Milan,Fabio Maresca,Italy,espn:679137
+SERIEA,2023-24,2024-04-01T10:30:00Z,Bologna,Salernitana,Ermanno Feliciani,Italy,espn:679130
+SERIEA,2023-24,2024-04-01T13:00:00Z,Sassuolo,Udinese,Michael Fabbri,Italy,espn:679131
+SERIEA,2023-24,2024-04-01T13:00:00Z,Cagliari,Verona,Daniele Doveri,Italy,espn:679138
+SERIEA,2023-24,2024-04-01T16:00:00Z,Lecce,Roma,Matteo Marcenaro,Italy,espn:679133
+SERIEA,2023-24,2024-04-01T18:45:00Z,Inter,Empoli,Federico Dionisi,Italy,espn:679135
+SERIEA,2023-24,2024-04-05T18:45:00Z,Salernitana,Sassuolo,Simone Sozza,Italy,espn:679141
+SERIEA,2023-24,2024-04-06T13:00:00Z,Milan,Lecce,Luca Massimi,Italy,espn:679149
+SERIEA,2023-24,2024-04-06T16:00:00Z,Roma,Lazio,Marco Guida,Italy,espn:679142
+SERIEA,2023-24,2024-04-06T18:45:00Z,Empoli,Torino,Davide Massa,Italy,espn:679147
+SERIEA,2023-24,2024-04-07T10:30:00Z,Frosinone,Bologna,Daniele Orsato,Italy,espn:679146
+SERIEA,2023-24,2024-04-07T13:00:00Z,Monza,Napoli,Daniele Doveri,Italy,espn:679143
+SERIEA,2023-24,2024-04-07T16:00:00Z,Verona,Genoa,Gianluca Manganiello,Italy,espn:679144
+SERIEA,2023-24,2024-04-07T16:00:00Z,Cagliari,Atalanta,Antonio Rapuano,Italy,espn:679148
+SERIEA,2023-24,2024-04-07T18:45:00Z,Juventus,Fiorentina,Federico La Penna,Italy,espn:679145
+SERIEA,2023-24,2024-04-08T18:45:00Z,Udinese,Inter,Marco Piccinini,Italy,espn:679140
+SERIEA,2023-24,2024-04-12T18:45:00Z,Lazio,Salernitana,Luca Zufferli,Italy,espn:679154
+SERIEA,2023-24,2024-04-13T13:00:00Z,Lecce,Empoli,Maurizio Mariani,Italy,espn:679153
+SERIEA,2023-24,2024-04-13T16:00:00Z,Torino,Juventus,Fabio Maresca,Italy,espn:679150
+SERIEA,2023-24,2024-04-13T18:45:00Z,Bologna,Monza,Federico La Penna,Italy,espn:679157
+SERIEA,2023-24,2024-04-14T10:30:00Z,Napoli,Frosinone,Michael Fabbri,Italy,espn:679152
+SERIEA,2023-24,2024-04-14T13:00:00Z,Sassuolo,Milan,Davide Massa,Italy,espn:679151
+SERIEA,2023-24,2024-04-14T18:45:00Z,Inter,Cagliari,Francesco Fourneau,Italy,espn:679155
+SERIEA,2023-24,2024-04-15T16:30:00Z,Fiorentina,Genoa,Davide Di Marco,Italy,espn:679156
+SERIEA,2023-24,2024-04-15T18:45:00Z,Atalanta,Verona,Juan Luca Sacchi,Italy,espn:679158
+SERIEA,2023-24,2024-04-19T16:30:00Z,Genoa,Lazio,Ermanno Feliciani,Italy,espn:679169
+SERIEA,2023-24,2024-04-19T18:45:00Z,Cagliari,Juventus,Marco Piccinini,Italy,espn:679160
+SERIEA,2023-24,2024-04-20T16:00:00Z,Empoli,Napoli,Gianluca Manganiello,Italy,espn:679161
+SERIEA,2023-24,2024-04-20T18:45:00Z,Verona,Udinese,Marco Guida,Italy,espn:679162
+SERIEA,2023-24,2024-04-21T10:30:00Z,Sassuolo,Lecce,Daniele Doveri,Italy,espn:679164
+SERIEA,2023-24,2024-04-21T13:00:00Z,Torino,Frosinone,Antonio Rapuano,Italy,espn:679163
+SERIEA,2023-24,2024-04-21T16:00:00Z,Salernitana,Fiorentina,Matteo Marchetti,Italy,espn:679165
+SERIEA,2023-24,2024-04-21T18:45:00Z,Monza,Atalanta,Antonio Giua,Italy,espn:679167
+SERIEA,2023-24,2024-04-22T16:30:00Z,Roma,Bologna,Fabio Maresca,Italy,espn:679166
+SERIEA,2023-24,2024-04-22T18:45:00Z,Milan,Inter,Andrea Colombo,Italy,espn:679168
+SERIEA,2023-24,2024-04-25T18:00:00Z,Udinese,Roma,Luca Pairetto,Italy,espn:679159
+SERIEA,2023-24,2024-04-26T18:45:00Z,Frosinone,Salernitana,Francesco Fourneau,Italy,espn:679176
+SERIEA,2023-24,2024-04-27T13:00:00Z,Lecce,Monza,Alberto Santoro,Italy,espn:679171
+SERIEA,2023-24,2024-04-27T16:00:00Z,Juventus,Milan,Maurizio Mariani,Italy,espn:679173
+SERIEA,2023-24,2024-04-27T18:45:00Z,Lazio,Verona,Davide Massa,Italy,espn:679172
+SERIEA,2023-24,2024-04-28T10:30:00Z,Inter,Torino,Maria Ferrieri Caputi,Italy,espn:679179
+SERIEA,2023-24,2024-04-28T13:00:00Z,Bologna,Udinese,Juan Luca Sacchi,Italy,espn:679178
+SERIEA,2023-24,2024-04-28T16:00:00Z,Atalanta,Empoli,Michael Fabbri,Italy,espn:679170
+SERIEA,2023-24,2024-04-28T16:00:00Z,Napoli,Roma,Simone Sozza,Italy,espn:679174
+SERIEA,2023-24,2024-04-28T18:45:00Z,Fiorentina,Sassuolo,Matteo Marcenaro,Italy,espn:679177
+SERIEA,2023-24,2024-04-29T18:45:00Z,Genoa,Cagliari,Federico Dionisi,Italy,espn:679175
+SERIEA,2023-24,2024-05-03T18:45:00Z,Torino,Bologna,Simone Sozza,Italy,espn:679181
+SERIEA,2023-24,2024-05-04T16:00:00Z,Monza,Lazio,Luca Pairetto,Italy,espn:679185
+SERIEA,2023-24,2024-05-04T18:45:00Z,Sassuolo,Inter,Matteo Marchetti,Italy,espn:679182
+SERIEA,2023-24,2024-05-05T10:30:00Z,Cagliari,Lecce,Matteo Marcenaro,Italy,espn:679188
+SERIEA,2023-24,2024-05-05T13:00:00Z,Verona,Fiorentina,Antonio Rapuano,Italy,espn:679184
+SERIEA,2023-24,2024-05-05T13:00:00Z,Empoli,Frosinone,Daniele Doveri,Italy,espn:679187
+SERIEA,2023-24,2024-05-05T16:00:00Z,Milan,Genoa,Alessandro Prontera,Italy,espn:679186
+SERIEA,2023-24,2024-05-05T18:45:00Z,Roma,Juventus,Andrea Colombo,Italy,espn:679189
+SERIEA,2023-24,2024-05-06T16:00:00Z,Salernitana,Atalanta,Ermanno Feliciani,Italy,espn:679183
+SERIEA,2023-24,2024-05-06T18:45:00Z,Udinese,Napoli,Gianluca Aureliano,Italy,espn:679180
+SERIEA,2023-24,2024-05-10T18:45:00Z,Frosinone,Inter,Antonio Giua,Italy,espn:679196
+SERIEA,2023-24,2024-05-11T16:00:00Z,Napoli,Bologna,Luca Pairetto,Italy,espn:679190
+SERIEA,2023-24,2024-05-11T18:45:00Z,Milan,Cagliari,Simone Sozza,Italy,espn:679191
+SERIEA,2023-24,2024-05-12T10:30:00Z,Lazio,Empoli,Gianluca Aureliano,Italy,espn:679193
+SERIEA,2023-24,2024-05-12T13:00:00Z,Genoa,Sassuolo,Maurizio Mariani,Italy,espn:679195
+SERIEA,2023-24,2024-05-12T13:00:00Z,Verona,Torino,Livio Marinelli,Italy,espn:679199
+SERIEA,2023-24,2024-05-12T16:00:00Z,Juventus,Salernitana,Alberto Santoro,Italy,espn:679194
+SERIEA,2023-24,2024-05-12T18:45:00Z,Atalanta,Roma,Marco Guida,Italy,espn:679198
+SERIEA,2023-24,2024-05-13T16:30:00Z,Lecce,Udinese,Davide Massa,Italy,espn:679192
+SERIEA,2023-24,2024-05-13T18:45:00Z,Fiorentina,Monza,Luca Zufferli,Italy,espn:679197
+SERIEA,2023-24,2024-05-17T18:45:00Z,Fiorentina,Napoli,Matteo Marchetti,Italy,espn:679201
+SERIEA,2023-24,2024-05-18T16:00:00Z,Lecce,Atalanta,Antonio Rapuano,Italy,espn:679208
+SERIEA,2023-24,2024-05-18T18:45:00Z,Torino,Milan,Ermanno Feliciani,Italy,espn:679203
+SERIEA,2023-24,2024-05-19T10:30:00Z,Sassuolo,Cagliari,Daniele Doveri,Italy,espn:679204
+SERIEA,2023-24,2024-05-19T13:00:00Z,Udinese,Empoli,Daniele Orsato,Italy,espn:679202
+SERIEA,2023-24,2024-05-19T13:00:00Z,Monza,Frosinone,Michael Fabbri,Italy,espn:679207
+SERIEA,2023-24,2024-05-19T16:00:00Z,Inter,Lazio,Juan Luca Sacchi,Italy,espn:679209
+SERIEA,2023-24,2024-05-19T18:45:00Z,Roma,Genoa,Gianluca Manganiello,Italy,espn:679206
+SERIEA,2023-24,2024-05-20T16:30:00Z,Salernitana,Verona,Marco Di Bello,Italy,espn:679205
+SERIEA,2023-24,2024-05-20T18:45:00Z,Bologna,Juventus,Giovanni Ayroldi,Italy,espn:679200
+SERIEA,2023-24,2024-05-23T18:45:00Z,Cagliari,Fiorentina,Alessandro Prontera,Italy,espn:679218
+SERIEA,2023-24,2024-05-24T18:45:00Z,Genoa,Bologna,Alberto Santoro,Italy,espn:679215
+SERIEA,2023-24,2024-05-25T16:00:00Z,Juventus,Monza,Maria Ferrieri Caputi,Italy,espn:679219
+SERIEA,2023-24,2024-05-25T18:45:00Z,Milan,Salernitana,Davide Di Marco,Italy,espn:679212
+SERIEA,2023-24,2024-05-26T16:00:00Z,Atalanta,Torino,Simone Sozza,Italy,espn:679210
+SERIEA,2023-24,2024-05-26T16:00:00Z,Napoli,Lecce,Federico Dionisi,Italy,espn:679211
+SERIEA,2023-24,2024-05-26T18:45:00Z,Verona,Inter,Luca Zufferli,Italy,espn:679214
+SERIEA,2023-24,2024-05-26T18:45:00Z,Empoli,Roma,Davide Massa,Italy,espn:679217
+SERIEA,2023-24,2024-05-26T18:45:00Z,Lazio,Sassuolo,Paride Tremolada,Italy,espn:679213
+SERIEA,2023-24,2024-05-26T18:45:00Z,Frosinone,Udinese,Daniele Doveri,Italy,espn:679216
+SERIEA,2023-24,2024-06-02T16:00:00Z,Atalanta,Fiorentina,Daniele Orsato,Italy,espn:679120
 BUNDES,2023-24,2023-08-18T18:30:00Z,Werder Bremen,Bayern Munich,Felix Zwayer,Germany,espn:677584
 BUNDES,2023-24,2023-08-19T13:30:00Z,Augsburg,M'gladbach,Daniel Schlager,Germany,espn:677589
 BUNDES,2023-24,2023-08-19T13:30:00Z,Hoffenheim,Freiburg,Sven Jablonski,Germany,espn:677590
