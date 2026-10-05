@@ -39,6 +39,14 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   reason), refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
 
+- `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
+  source errors in the collector log, bets stuck pending). Any problem changes the phone alert title to
+  "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
+
+## Tests
+- `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules); runs on GitHub on
+  every push that touches Python. Add a test with any change to parsing, pricing or settlement.
+
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)

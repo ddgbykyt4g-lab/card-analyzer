@@ -47,8 +47,12 @@ jobs:
 
       - name: Collect data and settle bets
         run: |
-          python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups
+          python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups 2>&1 | tee /tmp/collect.log
           python settle.py --db cards.db --report | tee /tmp/settle.txt
+
+      - name: Data health check
+        if: always()
+        run: python agent/health.py cards.db /tmp/collect.log | tee /tmp/health.txt
 
       - name: Price sheet
         run: |
@@ -72,7 +76,7 @@ jobs:
 
       - name: Phone dashboard
         run: |
-          python agent/dashboard.py /tmp/sheet.json cards.db > reports/latest.md
+          python agent/dashboard.py /tmp/sheet.json cards.db /tmp/health.txt > reports/latest.md
           cat reports/latest.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit and push
@@ -90,7 +94,12 @@ jobs:
         run: |
           if [ -s /tmp/sheet.json ]; then
             python agent/free_summary.py /tmp/sheet.json /tmp/settle.txt > /tmp/alert.txt
-            agent/notify.sh "Cards ${{ steps.season.outputs.day }}" "$(cat /tmp/alert.txt)"
+            if [ "$(cat /tmp/health.txt 2>/dev/null)" = "OK" ]; then
+              agent/notify.sh "Cards ${{ steps.season.outputs.day }}" "$(cat /tmp/alert.txt)"
+            else
+              { cat /tmp/health.txt; echo "---"; cat /tmp/alert.txt; } > /tmp/body.txt
+              agent/notify.sh "Cards ${{ steps.season.outputs.day }}: DATA PROBLEM, check first" "$(cat /tmp/body.txt)"
+            fi
           else
             agent/notify.sh "Cards ${{ steps.season.outputs.day }}: run failed" "The Saturday run failed before pricing. See the Actions tab on GitHub."
           fi

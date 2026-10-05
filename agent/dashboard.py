@@ -3,7 +3,7 @@
 
 Today's and tomorrow's matches from price_sheet --json with the lowest odds worth taking (overs at
 +8% EV, unders at the sheet's +5%), plus your pending bets and track record from cards.db.
-Usage: python agent/dashboard.py /tmp/sheet.json [cards.db] > reports/latest.md
+Usage: python agent/dashboard.py /tmp/sheet.json [cards.db] [health.txt] > reports/latest.md
 """
 import json
 import sqlite3
@@ -107,6 +107,9 @@ def main() -> int:
            f"Updated {made:%H:%M} UK · priced for {book} · overs need +{OVER_EV:.0%} EV, unders +5%. "
            "Team news not checked.", "",
            f"**[➕ Log a bet]({REPO}/actions/workflows/log-bet.yml)** (tap *Run workflow*)", ""]
+    health = open(sys.argv[3]).read().strip() if len(sys.argv) > 3 else "OK"
+    if health != "OK":
+        out += ["> ⚠️ **Data problem: check before betting**", ">"] + [f"> - {l}" for l in health.splitlines()] + [""]
     days: dict = {}
     for m in sheet["matches"]:
         days.setdefault(uk(m["kickoff_utc"]).date(), []).append(m)

@@ -23,7 +23,6 @@ import argparse
 import json
 import math
 import logging
-import math
 import re
 import sqlite3
 import sys
