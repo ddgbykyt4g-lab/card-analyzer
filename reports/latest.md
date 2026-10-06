@@ -1,6 +1,6 @@
-# Card prices · Sun 04 Oct
+# Card prices · Tue 06 Oct
 
-Updated 20:30 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
+Updated 07:28 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
 
 **[➕ Log a bet](https://github.com/ddgbykyt4g-lab/card-analyzer/actions/workflows/log-bet.yml)** (tap *Run workflow*)
 

@@ -469,7 +469,7 @@ def mark_stale(db: DB, days: int = 4) -> None:
 
 # ───────────────────────────── Source 3: ESPN referees ─────────────────────────────
 ESPN_PROBE = 10  # give up on a league if this many summaries in a row have no referee
-ESPN_FIRST_MONTH = "2026-08"  # ESPN match summaries list officials from here on; earlier months have none
+ESPN_FIRST_MONTH = "2022-04"  # ESPN match summaries list officials from about April 2022; earlier months have none
 
 
 def espn_referee(summary: dict) -> str | None:

@@ -43,6 +43,11 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   source errors in the collector log, bets stuck pending). Any problem changes the phone alert title to
   "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
 
+- Referees: football-data gives them for EPL only; SPL and the other four leagues get them from ESPN match
+  summaries (available from about April 2022, `ESPN_FIRST_MONTH`). The 2022-26 gap was backfilled once
+  with `agent/backfill_referees.py` (CSV kept on the `referee-backfill` branch); out-of-sample it improved
+  every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`.
+
 ## Tests
 - `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules); runs on GitHub on
   every push that touches Python. Add a test with any change to parsing, pricing or settlement.

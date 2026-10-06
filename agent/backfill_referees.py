@@ -2,8 +2,8 @@
 """One-off: fill missing referees for past seasons from ESPN match summaries, on a COPY of the database,
 saving progress as CSV so an interrupted run loses at most one league-season.
 
-ESPN summaries list the referee from about April 2022 (the collector's ESPN_FIRST_MONTH assumes August
-2026). Every checked match is written to the CSV (referee blank if ESPN had none), and `apply` marks those
+ESPN summaries list the referee from about April 2022. Run once on 2026-10-05/06 and loaded into cards.db;
+the collector's ESPN_FIRST_MONTH now covers the same range, so this is only needed to rebuild from scratch. Every checked match is written to the CSV (referee blank if ESPN had none), and `apply` marks those
 matches 'espn:<id>' in the copy, so the next `fill` skips them.
 
   python agent/backfill_referees.py apply  COPY.db CSV               # load earlier progress into the copy
