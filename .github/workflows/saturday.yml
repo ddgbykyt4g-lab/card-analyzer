@@ -74,6 +74,9 @@ jobs:
             echo '```'
           } > "reports/$day-prices.md"
 
+      - name: Log projections
+        run: python agent/log_projections.py --db cards.db --days 2
+
       - name: Phone dashboard
         run: |
           python agent/dashboard.py /tmp/sheet.json cards.db /tmp/health.txt > reports/latest.md
@@ -83,7 +86,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add cards.db reports/
+          git add cards.db reports/ data/
           git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
           git pull -q --rebase origin main && git push -q origin HEAD:main
 

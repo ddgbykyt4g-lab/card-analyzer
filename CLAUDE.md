@@ -39,6 +39,11 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   reason), refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
 
+- `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's
+  pre-kickoff projection for every match in the next 2 days to `data/projections.csv` (`agent/log_projections.py`:
+  model version, card weights, expected cards, pmf 0-20). It pushes only that file. Score it with
+  `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
+
 - `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
   source errors in the collector log, bets stuck pending). Any problem changes the phone alert title to
   "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
@@ -53,6 +58,9 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   every push that touches Python. Add a test with any change to parsing, pricing or settlement.
 
 ## Model
+- **Model freeze (from 2026-10-06):** no model changes (features, priors, half-life, dispersion, units) until
+  `data/projections.csv` has a few hundred scored matches (about 300) and glm-v4 has been judged on them with
+  `agent/score_projections.py`. Bug fixes in data collection are fine; anything that changes projections waits.
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,
