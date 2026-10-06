@@ -46,7 +46,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 - Referees: football-data gives them for EPL only; SPL and the other four leagues get them from ESPN match
   summaries (available from about April 2022, `ESPN_FIRST_MONTH`). The 2022-26 gap was backfilled once
   with `agent/backfill_referees.py` (CSV kept on the `referee-backfill` branch); out-of-sample it improved
-  every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`.
+  every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`; with fouls, `glm-v4`.
 
 ## Tests
 - `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules); runs on GitHub on
@@ -55,7 +55,10 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 ## Model
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
-  plus pre-match 1X2 market odds as match context. Needs the `match_prices` table (migration 001).
+  plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,
+  pre-match, shrunk toward the league; `--no-fouls` to drop). Needs the `match_prices` table (migration 001).
+- Tried and rejected out-of-sample: rest days, referee foul rate, interaction terms (league x home,
+  league x odds, referee x venue, referee x closeness, team x venue, provocation x venue).
 - `--model pcr`: the original three-way average of home team, away team and referee.
 - Backtests: `python glm_model.py --db cards.db --backtest` (GLM vs PCR, walk-forward) and
   `python backtest.py --db cards.db` (PCR diagnostics). Keep a change only if it wins on seasons it

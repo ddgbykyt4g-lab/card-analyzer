@@ -32,6 +32,7 @@ from value_finder import DEFAULT_WEIGHTS, Config, make_pmf, side_probs
 W = DEFAULT_WEIGHTS["cards"]
 BASE_FEAT = 3  # gap, |gap|, p_draw
 REST_FEAT = 5  # own short rest, own mid rest, opponent short, opponent mid, European away trip
+FOUL_FEAT = 2  # log(team's fouls committed / league), log(opponent's fouls drawn / league), pre-match
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,11 @@ class GLMConfig:
     # Rest-day features (needs team_fixtures, migration 002). Off: backtested 2022-27 with all cup and
     # European fixtures, they didn't improve match totals (tired team x0.95 cards, its opponent x1.04).
     rest: bool = False
+    # Fouls (football-data HF/AF): ~24 a match against ~4 cards, so they show a team's physicality sooner.
+    # Walk-forward 2024-27 (tuned 2022-24): log-loss +0.0022, team-level +0.0030, better every season;
+    # prior 16-64 all equivalent. A referee foul-rate feature was tried and hurt (card rate covers it).
+    fouls: bool = True
+    fouls_prior: float = 32.0  # matches' worth of league average each team's foul rate is shrunk toward
 
 
 # ───────────────────────────── Data ─────────────────────────────
@@ -51,7 +57,7 @@ class Data:
     """Two rows per match (home team, away team) with index columns for the design matrix."""
 
     def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False, rest: bool = False,
-                 weights=W):
+                 weights=W, fouls: bool = False, fouls_prior: float = 32.0, half_life: float = 120.0):
         status = "('finished','scheduled')" if include_scheduled else "('finished')"
         rows = con.execute(f"""
             SELECT m.match_id, m.kickoff_utc, m.status, s.league_id, s.label, l.code,
@@ -84,7 +90,7 @@ class Data:
         # parameter layout: [leagues | home | features | disc teams | prov teams | refs]
         self.o_home = len(leagues)
         self.o_feat = self.o_home + 1
-        self.n_feat = BASE_FEAT + (REST_FEAT if rest else 0)
+        self.n_feat = BASE_FEAT + (REST_FEAT if rest else 0) + (FOUL_FEAT if fouls else 0)
         self.o_disc = self.o_feat + self.n_feat
         self.o_prov = self.o_disc + len(teams)
         self.o_ref = self.o_prov + len(teams)
@@ -107,6 +113,8 @@ class Data:
         self.feat = np.column_stack([gap, np.abs(gap), np.repeat(pd, 2)])
         if rest:
             self.feat = np.column_stack([self.feat, rest_features(con, rows)])
+        if fouls:
+            self.feat = np.column_stack([self.feat, foul_features(con, self.match_id, fouls_prior, half_life)])
 
         def cards(y, y2, r):
             return weights.yellow * (y or 0) + weights.second_yellow * (y2 or 0) + weights.straight_red * (r or 0)
@@ -124,6 +132,52 @@ class Data:
         has = rr >= 0
         X[k[has], self.o_ref + rr[has]] = 1
         return X
+
+
+def foul_features(con: sqlite3.Connection, match_ids, prior: float, half_life: float) -> np.ndarray:
+    """Per team row (home, away interleaved): [log(own fouls committed / league average),
+    log(opponent's fouls drawn / league average)]. Uses only matches on earlier days, exponentially
+    weighted by half_life and shrunk toward the league average by `prior` matches."""
+    rows = con.execute("""
+        SELECT m.match_id, date(m.kickoff_utc), s.league_id, m.home_team_id, m.away_team_id, ch.fouls, ca.fouls
+        FROM matches m JOIN seasons s USING (season_id)
+        LEFT JOIN match_team_cards ch ON ch.match_id = m.match_id AND ch.team_id = m.home_team_id
+        LEFT JOIN match_team_cards ca ON ca.match_id = m.match_id AND ca.team_id = m.away_team_id
+        WHERE m.status IN ('finished', 'scheduled') ORDER BY m.kickoff_utc""").fetchall()
+    state: dict[tuple, list[float]] = {}  # key -> [decayed sum, decayed count, day]
+
+    def get(key, day):
+        st = state.get(key)
+        if not st:
+            return 0.0, 0.0
+        f = 0.5 ** ((day - st[2]) / half_life)
+        return st[0] * f, st[1] * f
+
+    def add(key, day, val):
+        sm, n = get(key, day)
+        state[key] = [sm + val, n + 1.0, day]
+
+    by_day: dict[str, list] = {}
+    for r in rows:
+        by_day.setdefault(r[1], []).append(r)
+    feats = {}
+    for day_s in sorted(by_day):
+        day = int(np.datetime64(day_s, "D").astype(int))
+        for mid, _, lg, h, a, _, _ in by_day[day_s]:  # features before adding the day's results
+            ls, ln = get(("L", lg), day)
+            lmean = ls / ln if ln > 0 else 11.5
+
+            def rel(key):
+                sm, n = get(key, day)
+                return math.log((sm + prior * lmean) / (n + prior) / lmean)
+            feats[mid] = [[rel(("C", own)), rel(("D", opp))] for own, opp in ((h, a), (a, h))]
+        for mid, _, lg, h, a, fh, fa in by_day[day_s]:
+            if fh is None or fa is None:
+                continue
+            for key, val in ((("C", h), fh), (("C", a), fa), (("D", h), fa), (("D", a), fh),
+                             (("L", lg), fh), (("L", lg), fa)):
+                add(key, day, val)
+    return np.array([f for m in match_ids for f in feats.get(int(m), [[0.0, 0.0], [0.0, 0.0]])])
 
 
 def rest_features(con: sqlite3.Connection, rows: list) -> np.ndarray:
@@ -215,7 +269,8 @@ class GLMPredictor:
     """Fits once on every finished match before `asof`, then predicts any loaded match."""
 
     def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig(), weights=W):
-        self.d = Data(con, include_scheduled=True, rest=cfg.rest, weights=weights)
+        self.d = Data(con, include_scheduled=True, rest=cfg.rest, weights=weights, fouls=cfg.fouls,
+                      fouls_prior=cfg.fouls_prior, half_life=cfg.half_life_days)
         day = int(np.datetime64(asof[:10], "D").astype(int))
         train = np.where(self.d.finished & (self.d.day < day))[0]
         self.model = CardGLM(self.d, cfg).fit(train, day)
@@ -233,7 +288,7 @@ class GLMPredictor:
 # ───────────────────────────── Walk-forward backtest ─────────────────────────────
 def walk_forward(con: sqlite3.Connection, seasons: list[str], cfg: GLMConfig, data: Data | None = None) -> dict:
     """Refit weekly on everything before each week; returns {match_id: prediction dict}."""
-    d = data or Data(con, rest=cfg.rest)
+    d = data or Data(con, rest=cfg.rest, fouls=cfg.fouls, fouls_prior=cfg.fouls_prior, half_life=cfg.half_life_days)
     model = CardGLM(d, cfg)
     test = np.where(d.finished & np.isin(d.season, seasons))[0]
     weeks = (d.day[test] + 3) // 7  # Monday-based week buckets
@@ -294,13 +349,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--team-l2", type=float, default=GLMConfig.team_l2)
     ap.add_argument("--ref-l2", type=float, default=GLMConfig.ref_l2)
     ap.add_argument("--rest", action="store_true", help="add rest-day features (needs migration 002)")
+    ap.add_argument("--no-fouls", dest="fouls", action="store_false", help="drop the team foul-rate features")
     args = ap.parse_args(argv)
     con = sqlite3.connect(args.db)
     con.row_factory = sqlite3.Row
     if not con.execute("SELECT 1 FROM sqlite_master WHERE name='match_prices'").fetchone():
         raise SystemExit("match_prices table missing: apply migrations/001_match_prices.sql and re-run the collector")
     cfg = GLMConfig(half_life_days=args.half_life, team_l2=args.team_l2, ref_l2=args.ref_l2,
-                    rest=args.rest)
+                    rest=args.rest, fouls=args.fouls)
     if args.backtest:
         compare(con, args.seasons, cfg)
     con.close()

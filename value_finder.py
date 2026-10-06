@@ -32,8 +32,9 @@ from typing import Callable
 log = logging.getLogger("value_finder")
 ISO = "%Y-%m-%dT%H:%M:%SZ"
 MODEL_VERSION = "pcr-v1"
-# glm-v2: refitted in each book's card units; glm-v3: referees backfilled for BUNDES/LALIGA/SERIEA/LIGUE1 2022-26
-MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v3"}
+# glm-v2: refitted in each book's card units; glm-v3: referees backfilled for BUNDES/LALIGA/SERIEA/LIGUE1 2022-26;
+# glm-v4: team foul rates (committed, drawn) as features
+MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v4"}
 
 
 # ───────────────────────────── Config & types ─────────────────────────────
