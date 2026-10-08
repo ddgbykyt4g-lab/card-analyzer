@@ -12,9 +12,10 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
      model context until football-data publishes its market average. Fixtures are matched on ESPN's
      event id (`external_id` 'espn-fx:<id>', 'espn:<id>' once referee-checked), so a moved fixture
      updates its row
-   - Loads appointed referees for upcoming EPL (Premier League API) and SPL (Scottish FA appointments API)
-     fixtures every run, so prices use the real referee. La Liga, Serie A, Bundesliga and Ligue 1 have no
-     feed yet: their upcoming matches use the league-average referee (ESPN lists officials only after the match)
+   - Loads appointed referees for upcoming fixtures every run from each league's own feed (ESPN lists
+     officials only after the match): Premier League API, Scottish FA appointments API, DFB data centre
+     referee schedule, Lega Serie A API, Ligue 1 API, LaLiga API. Usually published days ahead; La Liga's
+     the day before each match (by 16:00 Madrid). Until then a match uses the league-average referee
    - Add `--headed` if an appointments page shows a bot challenge
    - Splits red cards into second yellows and straight reds from ESPN match events (football-data counts
      a two-yellow dismissal as one red and drops its first yellow); `yellows_1h`/`reds_1h` mark checked teams
@@ -48,7 +49,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
 
 - `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
-  source errors in the collector log, bets stuck pending, EPL/SPL matches in the next 2 days with no referee). Any problem changes the phone alert title to
+  source errors in the collector log, bets stuck pending, matches about to kick off with no referee: 48 hours ahead, La Liga 18). Any problem changes the phone alert title to
   "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
 
 - Referees: football-data gives them for EPL only; SPL and the other four leagues get them from ESPN match

@@ -6,7 +6,8 @@ Sources
   Results, cards, fouls, EPL referees : football-data.co.uk season CSVs  (Playwright request API)
   Upcoming fixtures                   : football-data.co.uk fixtures.csv (Playwright request API)
   Referees the CSVs lack (SPL)        : ESPN public scoreboard/summary JSON
-  Upcoming referee appointments       : Premier League and Scottish FA JSON feeds (every run, EPL/SPL);
+  Upcoming referee appointments       : the leagues' own feeds, every run: Premier League API, Scottish FA,
+                                        DFB data centre, Lega Serie A API, Ligue 1 API, LaLiga API;
                                         other appointment pages via --ref-url  (Playwright + stealth)
 
 Setup
@@ -23,6 +24,7 @@ import argparse
 import asyncio
 import csv
 import difflib
+import html
 import io
 import json
 import logging
@@ -33,7 +35,7 @@ import sqlite3
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 from playwright.async_api import BrowserContext, Page, Route, async_playwright
@@ -151,6 +153,11 @@ NICKNAMES = {
 DROP = {"fc", "afc", "the"}
 
 
+def fold(name: str) -> str:
+    """Accent- and case-free form for comparing person names."""
+    return " ".join(unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower().split())
+
+
 def norm(name: str) -> str:
     s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
     s = s.replace("'", "").replace("&", " and ")
@@ -248,12 +255,15 @@ class DB:
         if (hit := self.alias_lookup(source, "referee", name)) is not None:
             return hit
         rid = self.one("SELECT referee_id FROM referees WHERE name=? AND country=?", name, country)
-        if rid is None and len(parts := name.split()) >= 2:
-            # "Willie Collum" vs "William Collum": same first initial + surname, if unique
-            cands = [r for r, n in self.q("SELECT referee_id, name FROM referees WHERE country=?", country)
-                     if n.split()[-1].lower() == parts[-1].lower() and n[0].lower() == name[0].lower()]
-            if len(cands) == 1:
-                rid = cands[0]
+        if rid is None:  # accents and case: "Jérémy STINAT" is "Jeremy Stinat"
+            known = self.q("SELECT referee_id, name FROM referees WHERE country=?", country)
+            same = [r for r, n in known if fold(n) == fold(name)]
+            rid = same[0] if len(same) == 1 else None
+            if rid is None and len(parts := fold(name).split()) >= 2:
+                # "Willie Collum" vs "William Collum": same first initial + surname, if unique
+                cands = [r for r, n in known if (f := fold(n).split()) and f[-1] == parts[-1] and f[0][0] == parts[0][0]]
+                if len(cands) == 1:
+                    rid = cands[0]
         if rid is None:
             rid = self.con.execute("INSERT INTO referees (name, country) VALUES (?,?)",
                                    (name, country)).lastrowid
@@ -875,14 +885,16 @@ CLUB_SUFFIX = re.compile(r"\s+F\.?\s?C\.?$", re.I)
 
 def assign_referees(db: DB, code: str, rows: list[tuple[str, str, datetime, str]], source: str,
                     now: datetime, days: int) -> int:
-    """Set the appointed referee on scheduled fixtures. rows: (home, away, kickoff UTC, referee)."""
+    """Set the appointed referee on scheduled fixtures. rows: (home, away, kickoff UTC, referee).
+    A fixture is found by its two teams, or by kickoff time plus one team; in the second case the other
+    team's spelling is saved to name_aliases so later runs resolve it directly."""
     lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
     upcoming = db.q(
-        """SELECT m.match_id, m.home_team_id, m.away_team_id FROM matches m
+        """SELECT m.match_id, m.home_team_id, m.away_team_id, m.kickoff_utc FROM matches m
            JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
            WHERE l.code = ? AND m.status = 'scheduled' AND m.kickoff_utc BETWEEN ? AND ?""",
         code, (lo - timedelta(days=1)).strftime(ISO), (hi + timedelta(days=1)).strftime(ISO))
-    by_pair = {(h, a): mid for mid, h, a in upcoming}
+    by_pair = {(h, a): mid for mid, h, a, _ in upcoming}
     league_teams = db.q("""SELECT m.home_team_id, m.away_team_id FROM matches m JOIN seasons s USING (season_id)
                            JOIN leagues l USING (league_id) WHERE l.code = ? AND m.kickoff_utc > ?""",
                         code, (now - timedelta(days=200)).strftime(ISO))
@@ -891,9 +903,21 @@ def assign_referees(db: DB, code: str, rows: list[tuple[str, str, datetime, str]
     for home, away, ko, ref in rows:
         if not lo <= ko <= hi:
             continue
-        h = resolver.resolve(CLUB_SUFFIX.sub("", home), source)
-        a = resolver.resolve(CLUB_SUFFIX.sub("", away), source)
-        if (mid := by_pair.get((h, a))) is None:
+        home, away = CLUB_SUFFIX.sub("", home), CLUB_SUFFIX.sub("", away)
+        h, a = resolver.resolve(home, source, warn=False), resolver.resolve(away, source, warn=False)
+        mid = by_pair.get((h, a))
+        if mid is None and (h or a):
+            near = [(m, mh, ma) for m, mh, ma, k in upcoming
+                    if abs((datetime.strptime(k, ISO).replace(tzinfo=timezone.utc) - ko).total_seconds()) <= 900
+                    and (mh == h or ma == a)]
+            if len(near) == 1:
+                mid, mh, ma = near[0]
+                for raw, got, tid in ((home, h, mh), (away, a, ma)):
+                    if got is None:
+                        db.alias_save(source, "team", raw, tid)
+        if mid is None:
+            if h is None or a is None:
+                log.warning("Unmatched team %r from %s; add it to name_aliases", home if h is None else away, source)
             continue
         db.con.execute("UPDATE matches SET referee_id=? WHERE match_id=?",
                        (db.referee_id(ref, LEAGUES[code]["country"], source), mid))
@@ -968,6 +992,144 @@ async def load_sfa_referees(ctx: BrowserContext, db: DB, season: str, days: int)
     assign_referees(db, "SPL", rows, "scottishfa.co.uk", datetime.now(timezone.utc), days)
 
 
+DFB_SCHEDULE = "https://datencenter.dfb.de/global_referee_schedule"
+DFB_WHEN = re.compile(r"(\d\d)\.(\d\d)\.(\d{4})\s+(\d\d):(\d\d)")
+TITLE_RE = re.compile(r"^(?:Dr\.|Prof\.)\s+")
+
+
+def _text_lines(fragment: str) -> list[str]:
+    text = re.sub(r"<img[^>]*>", "", fragment)
+    return [ln for ln in (html.unescape(x).strip() for x in re.sub(r"<[^>]+>", "\n", text).splitlines()) if ln]
+
+
+def parse_dfb_schedule(page: str) -> list[tuple[str, str, datetime, str]]:
+    """Bundesliga rows from the DFB data centre's referee schedule (it also lists the lower leagues)."""
+    rows = []
+    for block in page.split('class="c-MatchTable"')[1:]:
+        title = re.search(r'c-MatchTable-title">\s*([^<]+?)\s*<', block)
+        if not title or html.unescape(title.group(1)).strip() != "Bundesliga":
+            continue
+        for row in block.split('class="c-MatchTable-row"')[1:]:
+            lines = _text_lines(row.split('class="c-MatchTable-row"')[0])
+            when = next((DFB_WHEN.search(ln) for ln in lines if DFB_WHEN.search(ln)), None)
+            ref = next((ln[:-5] for ln in lines if ln.endswith(" (SR)")), None)
+            score = next((i for i, ln in enumerate(lines) if re.fullmatch(r"[-\d]+\s*:\s*[-\d]+", ln)), None)
+            if not (when and ref and score):
+                continue
+            d, mo, y, hh, mi = map(int, when.groups())
+            ko = datetime(y, mo, d, hh, mi, tzinfo=ZoneInfo("Europe/Berlin")).astimezone(timezone.utc)
+            rows.append((lines[score - 1], lines[score + 1], ko, TITLE_RE.sub("", ref)))
+    return rows
+
+
+async def load_dfb_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    page = await fetch_text(ctx, DFB_SCHEDULE)
+    if not page:
+        raise RuntimeError("DFB referee schedule unavailable")
+    assign_referees(db, "BUNDES", parse_dfb_schedule(page), "dfb.de", datetime.now(timezone.utc), days)
+
+
+SERIEA_API = "https://api-sdp.legaseriea.it/v1/serie-a/football"
+SERIEA_COMPETITION = "serie-a::Football_Competition::ec93b94f74294dc98ab5bcfd67fc0d88"
+
+
+def seriea_referee(facts: dict | None) -> str | None:
+    for r in (facts or {}).get("referees") or []:
+        if r.get("role") == "Referee":
+            return r.get("shortName") or f"{r.get('mediaFirstName', '')} {r.get('mediaLastName', '')}".strip() or None
+    return None
+
+
+async def load_seriea_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    now = datetime.now(timezone.utc)
+    lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
+    q = lambda s: quote(s, safe="")  # noqa: E731
+    seasons = await fetch_json(ctx, f"{SERIEA_API}/competitions/{q(SERIEA_COMPETITION)}/seasons?locale=en-GB")
+    name = f"{season[:4]}/{int(season[:4]) + 1}"
+    sid = next((s["seasonId"] for s in (seasons or {}).get("seasons", []) if s.get("seasonName") == name), None)
+    if sid is None:
+        raise RuntimeError(f"no Serie A season {name} in the Lega Serie A API")
+    days_ = await fetch_json(ctx, f"{SERIEA_API}/seasons/{q(sid)}/matchdays?locale=en-GB")
+    rows = []
+    for md in (days_ or {}).get("matchdays", []):
+        start, end = md.get("startDateUtc"), md.get("endDateUtc")
+        if not start or not end or datetime.fromisoformat(start.replace("Z", "+00:00")) > hi \
+                or datetime.fromisoformat(end.replace("Z", "+00:00")) + timedelta(days=1) < lo:
+            continue
+        listing = await fetch_json(ctx, f"{SERIEA_API}/seasons/{q(sid)}/matches?matchDayId={q(md['matchSetId'])}"
+                                        "&locale=en-GB")
+        for m in (listing or {}).get("matches", []):
+            ko = datetime.fromisoformat(m["matchDateUtc"].replace("Z", "+00:00"))
+            if not lo <= ko <= hi or m.get("status") != "UPCOMING":
+                continue
+            facts = await fetch_json(ctx, f"{SERIEA_API}/seasons/{q(sid)}/match/{q(m['matchId'])}/matchfacts"
+                                          "?locale=en-GB")
+            if ref := seriea_referee(facts):
+                rows.append((m["home"]["mediaName"], m["away"]["mediaName"], ko, ref))
+    assign_referees(db, "SERIEA", rows, "legaseriea.it", now, days)
+
+
+LIGUE1_API = "https://ma-api.ligue1.fr"
+
+
+def ligue1_referee(match: dict | None) -> str | None:
+    """Officials type 1 is the referee; the feed capitalises surnames ("Jérémy STINAT")."""
+    name = next((o.get("name") for o in (match or {}).get("officials") or [] if o.get("type") == 1), None)
+    return " ".join(w.capitalize() if w.isupper() else w for w in name.split()) if name else None
+
+
+async def load_ligue1_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    now = datetime.now(timezone.utc)
+    lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
+    played = db.one("""SELECT COUNT(*) FROM matches m JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
+                       WHERE l.code = 'LIGUE1' AND s.label = ? AND m.status = 'finished'""", season) or 0
+    rows = []
+    for week in range(max(1, played // 9), max(1, played // 9) + 4):  # 9 matches a round; stops past the horizon
+        listing = await fetch_json(ctx, f"{LIGUE1_API}/championship-matches/championship/1/game-week/{week}")
+        matches = (listing or {}).get("matches", [])
+        for m in matches:
+            ko = datetime.fromisoformat(m["date"].replace("Z", "+00:00"))
+            if lo <= ko <= hi and m.get("period") == "preMatch":
+                if ref := ligue1_referee(await fetch_json(ctx, f"{LIGUE1_API}/championship-match/{m['matchId']}")):
+                    rows.append((m["home"]["clubIdentity"]["officialName"], m["away"]["clubIdentity"]["officialName"],
+                                 ko, ref))
+        if matches and min(datetime.fromisoformat(m["date"].replace("Z", "+00:00")) for m in matches) > hi:
+            break
+    assign_referees(db, "LIGUE1", rows, "ligue1.fr", now, days)
+
+
+LALIGA_API = "https://apim.laliga.com/public-service/api/v1"
+LALIGA_KEY = "c13c3a8e2f6b46da9c5c425cf61fab3e"  # public key laliga.com itself sends with every page request
+
+
+def laliga_referee(match: dict | None) -> str | None:
+    """persons_role role 5 is the referee. The RFEF names them the day before the match."""
+    return next((p["person"]["name"] for p in (match or {}).get("persons_role") or []
+                 if (p.get("role") or {}).get("id") == 5 and (p.get("person") or {}).get("name")), None)
+
+
+async def load_laliga_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    now = datetime.now(timezone.utc)
+    lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
+    played = db.one("""SELECT COUNT(*) FROM matches m JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
+                       WHERE l.code = 'LALIGA' AND s.label = ? AND m.status = 'finished'""", season) or 0
+    key = f"contentLanguage=en&countryCode=GB&subscription-key={LALIGA_KEY}"
+    rows = []
+    for week in range(max(1, played // 10), max(1, played // 10) + 4):  # 10 matches a round
+        listing = await fetch_json(ctx, f"{LALIGA_API}/matches?subscriptionSlug=laliga-easports-{season[:4]}"
+                                        f"&week={week}&limit=20&{key}")
+        matches = (listing or {}).get("matches", [])
+        for m in matches:
+            ko = datetime.fromisoformat(m["date"])
+            if lo <= ko <= hi and m.get("status") == "PreMatch":
+                detail = await fetch_json(ctx, f"{LALIGA_API}/matches/{m['slug']}?{key}")
+                if ref := laliga_referee((detail or {}).get("match")):
+                    rows.append((m["home_team"]["nickname"], m["away_team"]["nickname"], ko, ref))
+        if matches and min(datetime.fromisoformat(m["date"]) for m in matches) > hi:
+            break
+    assign_referees(db, "LALIGA", rows, "laliga.com", now, days)
+
+
 # ───────────────────────────── Orchestration ─────────────────────────────
 async def _gather_logged(label: str, coros) -> None:
     for res in await asyncio.gather(*coros, return_exceptions=True):
@@ -1004,7 +1166,8 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn and not args.no_cups:
                 await _gather_logged("Cup/European fixtures",
                                      [load_other_fixtures(ctx, db, seasons, args.season)])
-            feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees}
+            feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees, "BUNDES": load_dfb_referees,
+                     "SERIEA": load_seriea_referees, "LIGUE1": load_ligue1_referees, "LALIGA": load_laliga_referees}
             await _gather_logged("Referee feeds", (feeds[c](ctx, db, args.season, args.days)
                                                    for c in args.leagues if c in feeds))
             if args.ref_url:

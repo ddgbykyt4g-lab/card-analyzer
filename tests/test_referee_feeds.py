@@ -57,7 +57,7 @@ def test_club_suffix_is_dropped_before_matching(db, tmp_path):
                               "scottishfa.co.uk", NOW, 10) == 1
 
 
-def test_health_flags_epl_match_without_referee(db, tmp_path):
+def test_health_flags_match_without_referee(db, tmp_path):
     import sys
     sys.path.insert(0, str(ROOT / "agent"))
     from health import problems
@@ -66,3 +66,57 @@ def test_health_flags_epl_match_without_referee(db, tmp_path):
     day_before = datetime(2026, 10, 9, 9, 0, tzinfo=timezone.utc)
     assert any("no referee" in p for p in problems(path, None, day_before))    # kickoff tomorrow, no referee
     assert not any("no referee" in p for p in problems(path, None, datetime(2026, 10, 1, tzinfo=timezone.utc)))
+
+
+DFB_PAGE = """
+<div class="c-MatchTable"><h6 class="dfb-Headline c-MatchTable-title">
+  Bundesliga
+</h6><div class="c-MatchTable-subtitle">Spieltag 5</div>
+<div id="match_1" class="c-MatchTable-row">
+  <p class="dfb-Paragraph">Samstag, 10.10.2026 15:30 Uhr</p>
+  <div class="c-MatchTable-team--home">1. FSV Mainz 05 <img src="x.jpg" alt="1. FSV Mainz 05"></div>
+  <div class="c-MatchTable-score"> - : - </div>
+  <div class="c-MatchTable-team--away"><img src="y.jpg" alt="Bayer Leverkusen"> Bayer Leverkusen</div>
+  <a href="#">Dr. Max Burda (SR)</a><a href="#">Sascha Thielert (SR-A. 1)</a>
+</div></div>
+<div class="c-MatchTable"><h6 class="dfb-Headline c-MatchTable-title">2. Bundesliga</h6>
+<div id="match_2" class="c-MatchTable-row">
+  <p>Sonntag, 11.10.2026 13:30 Uhr</p><div>FC St. Pauli</div><div> - : - </div><div>Karlsruher SC</div>
+  <a href="#">Lukas Benen (SR)</a>
+</div></div>"""
+
+
+def test_dfb_schedule_reads_bundesliga_only():
+    assert cc.parse_dfb_schedule(DFB_PAGE) == [
+        ("1. FSV Mainz 05", "Bayer Leverkusen", datetime(2026, 10, 10, 13, 30, tzinfo=timezone.utc), "Max Burda")]
+
+
+def test_league_feed_referee_fields():
+    assert cc.seriea_referee({"referees": [{"role": "Assistant", "shortName": "A B"},
+                                           {"role": "Referee", "shortName": "Michael Fabbri"}]}) == "Michael Fabbri"
+    assert cc.seriea_referee({"referees": []}) is None
+    assert cc.ligue1_referee({"officials": [{"name": "Christophe MOUYSSET", "type": 2},
+                                            {"name": "Jérémy STINAT", "type": 1}]}) == "Jérémy Stinat"
+    assert cc.ligue1_referee({"officials": []}) is None
+    assert cc.laliga_referee({"persons_role": [{"person": {"name": "Jon Ander González Esteban"}, "role": {"id": 5}}]}) \
+        == "Jon Ander González Esteban"
+    assert cc.laliga_referee({"persons_role": None}) is None
+
+
+def test_referee_names_match_without_accents_or_capitals(db, tmp_path):
+    rid = db.execute("INSERT INTO referees (name, country) VALUES ('Jeremy Stinat', 'France')").lastrowid
+    db.commit()
+    db.close()
+    d = cc.DB(str(tmp_path / "t.db"), None)
+    assert d.referee_id("Jérémy Stinat", "France", "ligue1.fr") == rid
+    assert d.referee_id("Éric Wattellier", "France", "ligue1.fr") != rid  # someone else: new record
+
+
+def test_fixture_found_by_kickoff_and_one_team_learns_the_alias(db, tmp_path):
+    db.close()
+    d = cc.DB(str(tmp_path / "t.db"), None)
+    rows = [("Arsenal", "LUFC", KO, "Paul Tierney")]   # away spelling unknown
+    assert cc.assign_referees(d, "EPL", rows, "example.com", NOW, 10) == 1
+    assert d.alias_lookup("example.com", "team", "LUFC") == 2
+    late = [("Arsenal", "Somebody Else", datetime(2026, 10, 10, 16, 0, tzinfo=timezone.utc), "X Y")]
+    assert cc.assign_referees(d, "EPL", late, "example.com", NOW, 10) == 0   # kickoff doesn't match: no guess
