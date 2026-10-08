@@ -165,7 +165,10 @@ def foul_features(con: sqlite3.Connection, match_ids, prior: float, half_life: f
         day = int(np.datetime64(day_s, "D").astype(int))
         for mid, _, lg, h, a, _, _ in by_day[day_s]:  # features before adding the day's results
             ls, ln = get(("L", lg), day)
-            lmean = ls / ln if ls > 0 else 11.5  # a league with no fouls recorded yet would divide by zero
+            if ls <= 0:  # no fouls recorded in this league yet (or only zeros): no information, neutral features
+                feats[mid] = [[0.0, 0.0], [0.0, 0.0]]
+                continue
+            lmean = ls / ln
 
             def rel(key):
                 sm, n = get(key, day)

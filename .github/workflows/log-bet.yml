@@ -64,7 +64,8 @@ jobs:
       - name: Refresh dashboard
         run: |
           python price_sheet.py --db cards.db --days 2 --json > /tmp/sheet.json
-          python agent/dashboard.py /tmp/sheet.json cards.db > reports/latest.md
+          python agent/health.py cards.db > /tmp/health.txt   # keep the data-problem warning on the page
+          python agent/dashboard.py /tmp/sheet.json cards.db /tmp/health.txt > reports/latest.md
 
       - name: Commit and push
         run: |

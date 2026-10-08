@@ -120,3 +120,19 @@ def test_fixture_found_by_kickoff_and_one_team_learns_the_alias(db, tmp_path):
     assert d.alias_lookup("example.com", "team", "LUFC") == 2
     late = [("Arsenal", "Somebody Else", datetime(2026, 10, 10, 16, 0, tzinfo=timezone.utc), "X Y")]
     assert cc.assign_referees(d, "EPL", late, "example.com", NOW, 10) == 0   # kickoff doesn't match: no guess
+
+
+def test_fixtures_csv_lagging_a_moved_fixture_adds_no_second_row(db, tmp_path, monkeypatch):
+    import asyncio
+    db.execute("UPDATE matches SET external_id = 'espn-fx:777', kickoff_utc = '2026-10-11T15:30:00Z'")  # ESPN moved it
+    db.commit()
+    db.close()
+    d = cc.DB(str(tmp_path / "t.db"), None)
+    csv_text = "Div,Date,Time,HomeTeam,AwayTeam,Referee,AvgH,AvgD,AvgA\nE0,10/10/2026,12:30,Arsenal,Leeds,,1.5,4.2,6.5\n"
+
+    async def fake_fetch(ctx, url, retries=3):
+        return csv_text
+    monkeypatch.setattr(cc, "fetch_text", fake_fetch)
+    asyncio.run(cc.load_upcoming(None, d, ["EPL"], "2026-27"))
+    assert d.one("SELECT COUNT(*) FROM matches") == 1
+    assert d.one("SELECT kickoff_utc FROM matches WHERE match_id = 1") == "2026-10-11T15:30:00Z"  # ESPN's date kept

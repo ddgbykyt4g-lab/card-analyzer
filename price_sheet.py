@@ -98,9 +98,9 @@ def price_match(projector: Projector, fx: sqlite3.Row, lines: list[float], min_e
                         fair_under=odds_for(1 - po, 0, 0), min_under=odds_for(1 - po, 0, min_ev))
                    for tl in TEAM_LINES]
             for side in ("home", "away")}
-    for line in lines:
-        p_over, push = side_probs(pmf, line, "over")
-        p_under, _ = side_probs(pmf, line, "under")
+    for line in lines:  # the pmf is in count units, like value_finder.evaluate and log_bet
+        p_over, push = side_probs(pmf, line / priced.scale, "over")
+        p_under, _ = side_probs(pmf, line / priced.scale, "under")
         out["lines"].append(dict(
             line=line, p_over=p_over, p_under=p_under, p_push=push,
             fair_over=odds_for(p_over, push, 0), fair_under=odds_for(p_under, push, 0),

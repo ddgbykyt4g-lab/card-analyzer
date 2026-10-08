@@ -61,6 +61,7 @@ def test_league_with_only_zero_fouls_recorded_does_not_divide_by_zero(fdb):
     fdb.execute("UPDATE match_team_cards SET fouls = 0")
     feats = foul_features(fdb, np.array([1, 2, 3, 4]), prior=32.0, half_life=120.0)
     assert np.isfinite(feats).all()
+    assert np.allclose(feats, 0)  # zeros carry no foul information: neutral, not drifting negative with n
 
 
 def test_zero_team_or_referee_penalty_is_floored():

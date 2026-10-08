@@ -161,6 +161,7 @@ def fold(name: str) -> str:
 def norm(name: str) -> str:
     s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
     s = s.replace("'", "").replace("&", " and ")
+    s = re.sub(r"\bf\.\s?c\b\.?", " fc ", s)  # "F.C." -> "fc", dropped below like "FC"
     s = re.sub(r"[^a-z0-9 ]+", " ", s)
     s = " ".join(TOKEN_MAP.get(t, t) for t in s.split() if t not in DROP)
     return NICKNAMES.get(s, s)
@@ -247,6 +248,13 @@ class DB:
             (league_id, label, start, end))
         return self.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", league_id, label)
 
+    def season_of(self, code: str, label: str) -> int | None:
+        return self.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", self.league_id(code), label)
+
+    def season_teams(self, season_id: int) -> set[int]:
+        return {t for (t,) in self.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
+                                     "SELECT away_team_id FROM matches WHERE season_id=?", season_id, season_id)}
+
     def team_id(self, name: str, country: str) -> int:
         self.con.execute("INSERT OR IGNORE INTO teams (name, country) VALUES (?,?)", (name, country))
         return self.one("SELECT team_id FROM teams WHERE name=? AND country=?", name, country)
@@ -326,8 +334,6 @@ class DB:
 
     def upsert_prices(self, match_id: int, row: dict) -> None:
         """Pre-match 1X2 market averages (migration 001); no-op until that table exists."""
-        if self._has_prices is None:
-            self._has_prices = bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'"))
         try:
             odds = [float(row.get(k) or 0) for k in ("AvgH", "AvgD", "AvgA")]
         except ValueError:
@@ -338,7 +344,7 @@ class DB:
         """De-margined 1X2 probabilities. football-data's market average (what the model is trained on)
         overwrites; other sources only fill matches that have no prices yet."""
         if self._has_prices is None:
-            self._has_prices = bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='match_prices'"))
+            self._has_prices = _has_table(self, "match_prices")
         if not self._has_prices or len(odds) != 3 or min(odds) <= 1:
             return 0
         inv = [1 / o for o in odds]
@@ -458,9 +464,19 @@ async def load_upcoming(ctx: BrowserContext, db: DB, codes: list[str], season: s
         if mid and db.one("SELECT status FROM matches WHERE match_id=?", mid) == "finished":
             continue  # fixtures.csv can lag behind results
         ref = (r.get("Referee") or "").strip()
+        ref_id = db.referee_id(ref, cfg["country"], "football-data") if ref else None
+        if mid is None and (moved := db.one(
+                """SELECT match_id FROM matches WHERE season_id=? AND home_team_id=? AND away_team_id=?
+                     AND status IN ('scheduled','postponed') AND external_id LIKE 'espn%'
+                     AND abs(julianday(kickoff_utc) - julianday(?)) <= 14""", sid, home, away, ko)):
+            # ESPN follows this fixture at another date and owns its kickoff; fixtures.csv may lag the move,
+            # so attach to that row instead of adding a second one at the old date
+            db.con.execute("UPDATE matches SET referee_id=COALESCE(?, referee_id) WHERE match_id=?", (ref_id, moved))
+            db.upsert_prices(moved, r)
+            added += 1
+            continue
         mid = db.upsert_match(dict(season_id=sid, matchweek=None, kickoff_utc=ko, home=home, away=away,
-                                   status="scheduled", hg=None, ag=None, external_id=None,
-                                   referee_id=db.referee_id(ref, cfg["country"], "football-data") if ref else None))
+                                   status="scheduled", hg=None, ag=None, external_id=None, referee_id=ref_id))
         db.upsert_prices(mid, r)
         added += 1
     db.commit()
@@ -499,7 +515,7 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
     """Fill referee_id on finished matches the CSVs left blank. Checked matches get
     external_id 'espn:<event id>' so later runs don't re-request them."""
     cfg = LEAGUES[code]
-    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    sid = db.season_of(code, season)
     if sid is None:
         return
     todo = {mid: ko for mid, ko in db.q(
@@ -509,8 +525,7 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
     todo = {mid: ko for mid, ko in todo.items() if ko[:7] >= ESPN_FIRST_MONTH}
     if not todo:
         return
-    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
-                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    team_ids = db.season_teams(sid)
     resolver = TeamResolver(db, team_ids)
     base = f"{ESPN_BASE}/{cfg['espn_slug']}"
 
@@ -557,7 +572,7 @@ async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> Non
     second_yellows and their first yellow is added back. Also fills yellows_1h/reds_1h, which mark the
     match as checked. A team whose ESPN red count differs from football-data's is left as it is."""
     cfg = LEAGUES[code]
-    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    sid = db.season_of(code, season)
     if sid is None:
         return
     todo = {mid: ko for mid, ko in db.q(
@@ -568,8 +583,7 @@ async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> Non
         return
     by_espn = {a: tid for a, tid in db.q("SELECT alias, entity_id FROM name_aliases "
                                           "WHERE source='espn-id' AND entity_type='team'")}
-    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
-                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    team_ids = db.season_teams(sid)
     resolver = TeamResolver(db, team_ids)
     base = f"{ESPN_BASE}/{cfg['espn_slug']}"
     split = checked = mismatch = 0
@@ -644,13 +658,12 @@ async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str
     cfg = LEAGUES[code]
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(days=days)
-    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    sid = db.season_of(code, season)
     if sid is None:
         return
     by_espn = {a: tid for a, tid in db.q("SELECT alias, entity_id FROM name_aliases "
                                           "WHERE source='espn-id' AND entity_type='team'")}
-    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
-                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    team_ids = db.season_teams(sid)
     resolver = TeamResolver(db, team_ids)
     added = priced = 0
     for ym in sorted({now.strftime("%Y%m"), horizon.strftime("%Y%m")}):
@@ -745,11 +758,10 @@ async def load_espn_team_ids(ctx: BrowserContext, db: DB, code: str, season: str
     Uses the league's October and March scoreboards: ESPN's team list endpoint ignores the
     season and only returns the current members."""
     cfg = LEAGUES[code]
-    sid = db.one("SELECT season_id FROM seasons WHERE league_id=? AND label=?", db.league_id(code), season)
+    sid = db.season_of(code, season)
     if sid is None:
         return
-    team_ids = {t for (t,) in db.q("SELECT home_team_id FROM matches WHERE season_id=? UNION "
-                                   "SELECT away_team_id FROM matches WHERE season_id=?", sid, sid)}
+    team_ids = db.season_teams(sid)
     mapped = {tid for (tid,) in db.q("SELECT entity_id FROM name_aliases WHERE source='espn-id' AND entity_type='team'")}
     if team_ids <= mapped:
         return
@@ -880,7 +892,6 @@ async def scrape_appointments(ctx: BrowserContext, db: DB, url: str, horizon_day
 PL_API = "https://sdp-prem-prod.premier-league-prod.pulselive.com/api"
 SFA_API = "https://www.scottishfa.co.uk/api/comet/referee-assignments"
 SFA_SKIP = re.compile(r"Development|Women|Reserve|Play-?off|\bU\d\d\b", re.I)
-CLUB_SUFFIX = re.compile(r"\s+F\.?\s?C\.?$", re.I)
 
 
 def assign_referees(db: DB, code: str, rows: list[tuple[str, str, datetime, str]], source: str,
@@ -903,7 +914,6 @@ def assign_referees(db: DB, code: str, rows: list[tuple[str, str, datetime, str]
     for home, away, ko, ref in rows:
         if not lo <= ko <= hi:
             continue
-        home, away = CLUB_SUFFIX.sub("", home), CLUB_SUFFIX.sub("", away)
         h, a = resolver.resolve(home, source, warn=False), resolver.resolve(away, source, warn=False)
         mid = by_pair.get((h, a))
         if mid is None and (h or a):
@@ -934,7 +944,7 @@ def pl_referee(officials: dict | None) -> str | None:
 
 async def load_pl_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
     now = datetime.now(timezone.utc)
-    hi = now + timedelta(days=days)
+    lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
     todo, cursor = [], ""
     while True:  # matches come sorted by kickoff; stop paging once past the horizon
         page = await fetch_json(ctx, f"{PL_API}/v2/matches?competition=8&season={season[:4]}&_limit=100"
@@ -945,7 +955,7 @@ async def load_pl_referees(ctx: BrowserContext, db: DB, season: str, days: int) 
         for m in data:
             ko = (datetime.strptime(m["kickoff"], "%Y-%m-%d %H:%M:%S")
                   .replace(tzinfo=ZoneInfo(m.get("kickoffTimezoneString") or "Europe/London")).astimezone(timezone.utc))
-            if m.get("period") == "PreMatch" and ko <= hi:
+            if m.get("period") == "PreMatch" and lo <= ko <= hi:  # postponed games stay PreMatch
                 todo.append((m, ko))
         cursor = page["pagination"].get("_next")
         if not cursor or not data or ko > hi:
@@ -1010,8 +1020,8 @@ def parse_dfb_schedule(page: str) -> list[tuple[str, str, datetime, str]]:
         if not title or html.unescape(title.group(1)).strip() != "Bundesliga":
             continue
         for row in block.split('class="c-MatchTable-row"')[1:]:
-            lines = _text_lines(row.split('class="c-MatchTable-row"')[0])
-            when = next((DFB_WHEN.search(ln) for ln in lines if DFB_WHEN.search(ln)), None)
+            lines = _text_lines(row)
+            when = next(filter(None, map(DFB_WHEN.search, lines)), None)
             ref = next((ln[:-5] for ln in lines if ln.endswith(" (SR)")), None)
             score = next((i for i, ln in enumerate(lines) if re.fullmatch(r"[-\d]+\s*:\s*[-\d]+", ln)), None)
             if not (when and ref and score):

@@ -18,12 +18,27 @@ LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
 BACKTEST = {"log-loss": -2.161, "rmse": 2.203}
 
 
-def latest_before_kickoff(path: str, kickoff: dict[int, str], by_ext: dict[str, int]) -> dict[int, dict]:
+def resolve_match(r: dict, kickoff: dict[int, str], by_ext: dict[str, int],
+                  teams: dict[int, tuple[str, str]] | None) -> int | None:
+    """The match a log row was written for. Its match_id alone can't be trusted: the weekday workflow logs
+    from a cards.db it then discards, so a fixture it inserted had an id that cards.db may since have
+    given to a different match. ESPN event id first, then the logged id if its teams agree, then the
+    same teams on the logged kickoff day."""
+    ext = r["external_id"].split(":", 1)[-1] if r["external_id"] else ""
+    if ext in by_ext:
+        return by_ext[ext]
+    mid = int(r["match_id"])
+    if teams is None or teams.get(mid) == (r["home"], r["away"]):
+        return mid
+    return next((m for m, pair in teams.items()
+                 if pair == (r["home"], r["away"]) and kickoff.get(m, "")[:10] == r["kickoff_utc"][:10]), None)
+
+
+def latest_before_kickoff(path: str, kickoff: dict[int, str], by_ext: dict[str, int],
+                          teams: dict[int, tuple[str, str]] | None = None) -> dict[int, dict]:
     best: dict[int, dict] = {}
     for r in csv.DictReader(open(path)):
-        mid = int(r["match_id"])
-        if mid not in kickoff and r["external_id"]:  # row merged away since: follow the ESPN event id
-            mid = by_ext.get(r["external_id"].split(":", 1)[-1], mid)
+        mid = resolve_match(r, kickoff, by_ext, teams)
         ko = kickoff.get(mid)
         if ko is None or r["logged_at"] >= ko:
             continue
@@ -37,13 +52,16 @@ def score(db: str, path: str) -> dict[str, dict]:
     kickoff = dict(con.execute("SELECT match_id, kickoff_utc FROM matches").fetchall())
     by_ext = {e.split(":", 1)[-1]: m for m, e in
               con.execute("SELECT match_id, external_id FROM matches WHERE external_id LIKE 'espn%'")}
+    teams = {m: (h, a) for m, h, a in con.execute(
+        """SELECT m.match_id, h.name, a.name FROM matches m
+           JOIN teams h ON h.team_id = m.home_team_id JOIN teams a ON a.team_id = m.away_team_id""")}
     cards = {m: (y, sy, sr) for m, y, sy, sr in con.execute(
         """SELECT m.match_id, SUM(c.yellows), SUM(c.second_yellows), SUM(c.straight_reds)
            FROM matches m JOIN match_team_cards c USING (match_id)
            WHERE m.status = 'finished' GROUP BY m.match_id""")}
     con.close()
     acc: dict[str, dict] = defaultdict(lambda: defaultdict(float))
-    for mid, r in latest_before_kickoff(path, kickoff, by_ext).items():
+    for mid, r in latest_before_kickoff(path, kickoff, by_ext, teams).items():
         if mid not in cards:
             continue
         y, sy, sr = cards[mid]

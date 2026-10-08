@@ -48,3 +48,17 @@ def test_poisson_tail_matches_side_probs():
 @pytest.mark.parametrize("line, quarter", [(4.25, True), (4.75, True), (4.5, False), (4.0, False)])
 def test_quarter_lines(line, quarter):
     assert is_quarter_line(line) is quarter
+
+
+def test_price_sheet_lines_are_compared_in_count_units():
+    # a book counting yellows as 10 points: line 45 points is 4.5 cards in the count-unit pmf
+    from price_sheet import price_match
+    from value_finder import Priced, Weights
+
+    class Fixed:
+        def price(self, fx, w):
+            return Priced(42.0, pois(4.2), 10.0, "test", dict(model="pcr"))
+    fx = dict(match_id=1, kickoff_utc="2026-10-10T11:30:00Z", league="EPL", home="A", away="B", referee=None,
+              referee_id=None, ref_matches=0)
+    out = price_match(Fixed(), fx, [45.0], 0.05, Weights(10, 10, 25))
+    assert out["lines"][0]["p_over"] == pytest.approx(side_probs(pois(4.2), 4.5, "over")[0])
