@@ -6,7 +6,8 @@ Sources
   Results, cards, fouls, EPL referees : football-data.co.uk season CSVs  (Playwright request API)
   Upcoming fixtures                   : football-data.co.uk fixtures.csv (Playwright request API)
   Referees the CSVs lack (SPL)        : ESPN public scoreboard/summary JSON
-  Upcoming referee appointments       : appointment pages via --ref-url  (Playwright + stealth)
+  Upcoming referee appointments       : Premier League and Scottish FA JSON feeds (every run, EPL/SPL);
+                                        other appointment pages via --ref-url  (Playwright + stealth)
 
 Setup
   pip install playwright playwright-stealth
@@ -863,6 +864,110 @@ async def scrape_appointments(ctx: BrowserContext, db: DB, url: str, horizon_day
     log.info("Appointments %s: %d of %d parsed lines matched upcoming fixtures", source, matched, len(found))
 
 
+# ───────────────────────────── Source 5: league referee feeds ─────────────────────────────
+# Referees named before kickoff, read from the league bodies' own JSON every run (no weekly URL to find).
+# ESPN only lists officials after the match, so without these every upcoming fixture used the league average.
+PL_API = "https://sdp-prem-prod.premier-league-prod.pulselive.com/api"
+SFA_API = "https://www.scottishfa.co.uk/api/comet/referee-assignments"
+SFA_SKIP = re.compile(r"Development|Women|Reserve|Play-?off|\bU\d\d\b", re.I)
+CLUB_SUFFIX = re.compile(r"\s+F\.?\s?C\.?$", re.I)
+
+
+def assign_referees(db: DB, code: str, rows: list[tuple[str, str, datetime, str]], source: str,
+                    now: datetime, days: int) -> int:
+    """Set the appointed referee on scheduled fixtures. rows: (home, away, kickoff UTC, referee)."""
+    lo, hi = now - timedelta(hours=12), now + timedelta(days=days)
+    upcoming = db.q(
+        """SELECT m.match_id, m.home_team_id, m.away_team_id FROM matches m
+           JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
+           WHERE l.code = ? AND m.status = 'scheduled' AND m.kickoff_utc BETWEEN ? AND ?""",
+        code, (lo - timedelta(days=1)).strftime(ISO), (hi + timedelta(days=1)).strftime(ISO))
+    by_pair = {(h, a): mid for mid, h, a in upcoming}
+    league_teams = db.q("""SELECT m.home_team_id, m.away_team_id FROM matches m JOIN seasons s USING (season_id)
+                           JOIN leagues l USING (league_id) WHERE l.code = ? AND m.kickoff_utc > ?""",
+                        code, (now - timedelta(days=200)).strftime(ISO))
+    resolver = TeamResolver(db, {t for pair in league_teams for t in pair})  # postponed games still resolve
+    matched = 0
+    for home, away, ko, ref in rows:
+        if not lo <= ko <= hi:
+            continue
+        h = resolver.resolve(CLUB_SUFFIX.sub("", home), source)
+        a = resolver.resolve(CLUB_SUFFIX.sub("", away), source)
+        if (mid := by_pair.get((h, a))) is None:
+            continue
+        db.con.execute("UPDATE matches SET referee_id=? WHERE match_id=?",
+                       (db.referee_id(ref, LEAGUES[code]["country"], source), mid))
+        matched += 1
+    db.commit()
+    log.info("%s referees from %s: %d upcoming fixtures assigned", code, source, matched)
+    return matched
+
+
+def pl_referee(officials: dict | None) -> str | None:
+    return next((o["official"]["name"] for o in (officials or {}).get("matchOfficials") or []
+                 if o.get("type") == "Referee" and (o.get("official") or {}).get("name")), None)
+
+
+async def load_pl_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    now = datetime.now(timezone.utc)
+    hi = now + timedelta(days=days)
+    todo, cursor = [], ""
+    while True:  # matches come sorted by kickoff; stop paging once past the horizon
+        page = await fetch_json(ctx, f"{PL_API}/v2/matches?competition=8&season={season[:4]}&_limit=100"
+                                     + (f"&_next={cursor}" if cursor else ""))
+        if not page:
+            raise RuntimeError("Premier League match list unavailable")
+        data = page["data"]
+        for m in data:
+            ko = (datetime.strptime(m["kickoff"], "%Y-%m-%d %H:%M:%S")
+                  .replace(tzinfo=ZoneInfo(m.get("kickoffTimezoneString") or "Europe/London")).astimezone(timezone.utc))
+            if m.get("period") == "PreMatch" and ko <= hi:
+                todo.append((m, ko))
+        cursor = page["pagination"].get("_next")
+        if not cursor or not data or ko > hi:
+            break
+    rows = []
+    for m, ko in todo:
+        if ref := pl_referee(await fetch_json(ctx, f"{PL_API}/v1/matches/{m['matchId']}/officials")):
+            rows.append((m["homeTeam"]["name"], m["awayTeam"]["name"], ko, ref))
+    assign_referees(db, "EPL", rows, "premierleague.com", now, days)
+
+
+def sfa_competition_ids(comps: list[dict], season: str) -> list[int]:
+    """Scottish Premiership competitions for a season, e.g. 'William Hill Premiership 2026/27 Regular Season'."""
+    label = f"{season[:4]}/{season[5:]}"
+    return [c["competitionId"] for c in comps
+            if "Premiership" in c["competitionName"] and label in c["competitionName"]
+            and not SFA_SKIP.search(c["competitionName"])]
+
+
+def sfa_rows(results: list[dict]) -> list[tuple[str, str, datetime, str]]:
+    rows = []
+    for r in results:
+        ref = next((o["personName"] for o in r.get("officials") or []
+                    if o.get("role") == "Referee" and o.get("roleStatus", "CONFIRMED") == "CONFIRMED"), None)
+        if ref:
+            rows.append((r["homeTeamName"], r["awayTeamName"],
+                         datetime.fromisoformat(r["matchDateUtc"]).astimezone(timezone.utc), ref))
+    return rows
+
+
+async def load_sfa_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    comps = await fetch_json(ctx, f"{SFA_API}/competitions")
+    ids = sfa_competition_ids(comps or [], season)
+    if not ids:
+        raise RuntimeError(f"no Scottish Premiership {season} competition in the Scottish FA appointments list")
+    rows = []
+    for cid in ids:
+        page = 1
+        while (d := await fetch_json(ctx, f"{SFA_API}?competitionId={cid}&page={page}&pageSize=100")):
+            rows += sfa_rows(d["results"])
+            if not d.get("hasNextPage"):
+                break
+            page += 1
+    assign_referees(db, "SPL", rows, "scottishfa.co.uk", datetime.now(timezone.utc), days)
+
+
 # ───────────────────────────── Orchestration ─────────────────────────────
 async def _gather_logged(label: str, coros) -> None:
     for res in await asyncio.gather(*coros, return_exceptions=True):
@@ -899,6 +1004,9 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn and not args.no_cups:
                 await _gather_logged("Cup/European fixtures",
                                      [load_other_fixtures(ctx, db, seasons, args.season)])
+            feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees}
+            await _gather_logged("Referee feeds", (feeds[c](ctx, db, args.season, args.days)
+                                                   for c in args.leagues if c in feeds))
             if args.ref_url:
                 await _gather_logged("Appointments", (scrape_appointments(ctx, db, u) for u in args.ref_url))
             settle(db.con)  # pending bets on matches whose cards just arrived
