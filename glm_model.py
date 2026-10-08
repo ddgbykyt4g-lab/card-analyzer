@@ -165,7 +165,7 @@ def foul_features(con: sqlite3.Connection, match_ids, prior: float, half_life: f
         day = int(np.datetime64(day_s, "D").astype(int))
         for mid, _, lg, h, a, _, _ in by_day[day_s]:  # features before adding the day's results
             ls, ln = get(("L", lg), day)
-            lmean = ls / ln if ln > 0 else 11.5
+            lmean = ls / ln if ls > 0 else 11.5  # a league with no fouls recorded yet would divide by zero
 
             def rel(key):
                 sm, n = get(key, day)
@@ -220,8 +220,10 @@ class CardGLM:
     def __init__(self, data: Data, cfg: GLMConfig):
         self.d, self.cfg = data, cfg
         pen = np.full(data.n_par, cfg.fixed_l2)
-        pen[data.o_disc:data.o_ref] = cfg.team_l2
-        pen[data.o_ref:] = cfg.ref_l2
+        # never below fixed_l2: team and referee effects are collinear with the league intercepts,
+        # so an unpenalised block (--team-l2 0 / --ref-l2 0) makes the Hessian singular
+        pen[data.o_disc:data.o_ref] = max(cfg.team_l2, cfg.fixed_l2)
+        pen[data.o_ref:] = max(cfg.ref_l2, cfg.fixed_l2)
         self.pen = pen
         self.beta = np.zeros(data.n_par)
         self.size: dict[int, float | None] = {}

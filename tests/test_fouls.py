@@ -55,3 +55,18 @@ def test_no_leakage_from_the_match_itself(fdb):
 
 def test_shrinkage_pulls_toward_zero(fdb):
     assert abs(feats(fdb, prior=1000.0)[4, 0]) < abs(feats(fdb, prior=2.0)[4, 0])
+
+
+def test_league_with_only_zero_fouls_recorded_does_not_divide_by_zero(fdb):
+    fdb.execute("UPDATE match_team_cards SET fouls = 0")
+    feats = foul_features(fdb, np.array([1, 2, 3, 4]), prior=32.0, half_life=120.0)
+    assert np.isfinite(feats).all()
+
+
+def test_zero_team_or_referee_penalty_is_floored():
+    from types import SimpleNamespace
+    from glm_model import CardGLM, GLMConfig
+    data = SimpleNamespace(n_par=6, o_disc=2, o_ref=4)
+    pen = CardGLM(data, GLMConfig(team_l2=0.0, ref_l2=0.0)).pen
+    assert (pen >= GLMConfig.fixed_l2).all()          # unpenalised blocks would make the Hessian singular
+    assert CardGLM(data, GLMConfig()).pen.tolist() == [1e-3, 1e-3, 60.0, 60.0, 100.0, 100.0]  # defaults unchanged
