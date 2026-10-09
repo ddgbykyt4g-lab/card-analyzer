@@ -40,7 +40,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
   `reports/latest.md` (`agent/dashboard.py`).
 - `.github/workflows/log-bet.yml`: logs a bet from the GitHub app (inputs: bet, placed, adjusted_p,
-  reason), refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
+  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
 
 - `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's

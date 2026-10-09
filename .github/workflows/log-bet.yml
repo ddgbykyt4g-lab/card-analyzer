@@ -33,7 +33,7 @@ concurrency:
 jobs:
   log:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,7 +45,15 @@ jobs:
           cache: pip
 
       - name: Install
-        run: pip install -q -r requirements.txt   # no browser needed to log a bet
+        run: |
+          pip install -q -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Load appointed referees
+        continue-on-error: true   # if a feed is down the bet is still logged, priced as provisional
+        run: |
+          label=$(python -c "from datetime import date; d=date.today(); y=d.year if d.month>=8 else d.year-1; print(f'{y}-{str(y+1)[2:]}')")
+          python collect_cards.py --db cards.db --season "$label" --referees-only
 
       - name: Log the bet
         env:

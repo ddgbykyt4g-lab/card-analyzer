@@ -1157,7 +1157,13 @@ async def run(args: argparse.Namespace) -> None:
         ctx = await browser.new_context(locale="en-GB", timezone_id="Europe/London",
                                         viewport={"width": 1440, "height": 900})
         await ctx.route("**/*", _block_heavy)
+        feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees, "BUNDES": load_dfb_referees,
+                 "SERIEA": load_seriea_referees, "LIGUE1": load_ligue1_referees, "LALIGA": load_laliga_referees}
         try:
+            if args.referees_only:  # quick refresh before pricing (log-a-bet): appointed referees only
+                await _gather_logged("Referee feeds", (feeds[c](ctx, db, args.season, args.days)
+                                                       for c in args.leagues if c in feeds))
+                return
             # Order matters: results and fixtures create the matches the other sources attach to.
             await _gather_logged("football-data",
                                  (load_results(ctx, db, c, s) for c in args.leagues for s in seasons))
@@ -1176,8 +1182,6 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn and not args.no_cups:
                 await _gather_logged("Cup/European fixtures",
                                      [load_other_fixtures(ctx, db, seasons, args.season)])
-            feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees, "BUNDES": load_dfb_referees,
-                     "SERIEA": load_seriea_referees, "LIGUE1": load_ligue1_referees, "LALIGA": load_laliga_referees}
             await _gather_logged("Referee feeds", (feeds[c](ctx, db, args.season, args.days)
                                                    for c in args.leagues if c in feeds))
             if args.ref_url:
@@ -1200,6 +1204,8 @@ def main() -> None:
     ap.add_argument("--days", type=int, default=10, help="how far ahead to load ESPN league fixtures")
     ap.add_argument("--leagues", nargs="+", default=list(LEAGUES), choices=list(LEAGUES))
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
+    ap.add_argument("--referees-only", action="store_true",
+                    help="only load appointed referees for upcoming fixtures (about a minute)")
     ap.add_argument("--headed", action="store_true", help="visible browser; helps clear JS challenges")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
