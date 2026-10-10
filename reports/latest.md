@@ -1,6 +1,6 @@
 # Card prices · Sat 10 Oct
 
-Updated 07:40 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
+Updated 10:48 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
 
 **[➕ Log a bet](https://github.com/ddgbykyt4g-lab/card-analyzer/actions/workflows/log-bet.yml)** (tap *Run workflow*)
 
@@ -720,6 +720,7 @@ A few hundred settled bets are needed before this means much.
 
 Pending:
 
+- Sat 10 Oct Genoa v Fiorentina: match over 2.5 @ 2.38, £10
 - Fri 09 Oct Malaga v Espanol: match over 3.5 @ 1.67, £10
 
 Latest results:
