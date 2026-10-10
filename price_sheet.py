@@ -202,13 +202,21 @@ def parse_bet(text: str) -> dict:
     else:
         selection, line = ("over" if m["sel"].lower().startswith("o") else "under"), float(m["line"])
     target = (m["target"] or "").strip()
+    home, away = m["home"].strip(), m["away"].strip()
+    if not target:  # "Genoa v Fiorentina Fiorentina over 2.5": the team was named without the colon
+        words = away.split()
+        for k in range(1, len(words)):
+            head, tail = " ".join(words[:k]), " ".join(words[k:])
+            if tail.lower() in (home.lower(), head.lower()):
+                away, target = head, tail
+                break
     kind = "total" if not target or target.lower() in ("match", "total") else \
         "each" if target.lower().startswith("each") else "team"
     stake_text = (m["stake"] or "").strip()
     stake = float(re.sub(r"[^\d.]", "", stake_text)) if stake_text else DEFAULT_STAKE
     if stake <= 0:
         raise SystemExit("Stake must be positive")
-    return dict(home=m["home"].strip(), away=m["away"].strip(), kind=kind, team=target if kind == "team" else None,
+    return dict(home=home, away=away, kind=kind, team=target if kind == "team" else None,
                 selection=selection, line=line, odds=parse_odds(m["odds"]), bookmaker=m["book"].strip(),
                 stake=stake, stake_text=stake_text or f"{DEFAULT_STAKE:g} unit", **extra)
 

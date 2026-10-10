@@ -64,3 +64,13 @@ def test_rejects_unparseable(bad):
 def test_rejects_zero_stake():
     with pytest.raises(SystemExit):
         parse_bet("Arsenal v Leeds over 4.5 @ 2.0 Sky Bet £0")
+
+
+@pytest.mark.parametrize("text, away, team", [
+    ("Genoa v Fiorentina Fiorentina over 2.5 @ 2.38 Sky Bet £10", "Fiorentina", "Fiorentina"),  # bet #7 as typed
+    ("Genoa v Fiorentina Genoa over 1.5 @ 4/6 Sky Bet £10", "Fiorentina", "Genoa"),
+    ("Man United v Tottenham over 3.5 @ 7/10 Sky Bet £10", "Tottenham", None),
+])
+def test_team_named_without_colon_is_a_team_bet(text, away, team):
+    bet = parse_bet(text)
+    assert (bet["away"], bet["team"], bet["kind"]) == (away, team, "team" if team else "total")
