@@ -45,7 +45,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 
 - `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's
   pre-kickoff projection for every match in the next 2 days to `data/projections.csv` (`agent/log_projections.py`:
-  model version, card weights, expected cards, pmf 0-20). It pushes only that file. Score it with
+  model version, card weights, expected cards, pmf 0-20). It pushes that file, and cards.db only when a bet settled. Score it with
   `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
 
 - `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
