@@ -49,13 +49,23 @@ the specific evidence. No evidence → no adjustment. Don't invent precision.
 ## 5. Build the shortlist
 There is no live odds feed yet, so value is expressed as **the minimum price worth taking**.
 - Consider match totals (`lines`) and team lines (`team_lines`) from `/tmp/sheet.json`.
-- For a candidate, take the adjusted probability `p` and compute minimum odds for +5% EV: `(1.05 - p_push) / p`
-  (`p_push` is the sheet's push probability, 0 on half lines; for whole-number match lines use the sheet's
-  push-aware `min_over`/`min_under` and adjust only if you changed the probability).
+- For a candidate, take the adjusted probability `p` and compute minimum odds: overs need +8% EV,
+  `(1.08 - p_push) / p`; unders +5%, `(1.05 - p_push) / p` (the dashboard rule; the model runs 1–3 points
+  optimistic on overs). `p_push` is the sheet's push probability, 0 on half lines; for whole-number match lines
+  start from the sheet's push-aware `min_over`/`min_under` (+5%) and scale overs up to +8%.
 - Shortlist at most 8 selections where the research gives a concrete reason to back that side, the adjusted
   probability is at least 25%, and the minimum odds are realistic for that market. Flag correlated selections
   (same match, or same team across markets). If nothing qualifies, the shortlist is "No bet".
 - Provisional matches (no referee) are allowed but must be labelled.
+- Cautions (from losing bets, 18 Oct 2026; see `agent/POST_FREEZE.md`). Apply them when choosing and say so in
+  the reason column:
+  - **Heavy underdogs' card lines** (own win probability under about 20%): a blowout kills the fouling, so
+    the model's underdog boost can overshoot. Prefer the match total or skip; never the long team lines.
+  - **Team lines**: name the team's most-booked players and check they are expected to start. If they are
+    likely benched or out, take 3 pts off the team-line probability or drop it.
+  - **Edges above about +20% on a team line of 3+ cards or longer**: treat as a sign the model is missing
+    something (it disagrees with the market by most of a card). Shortlist the shorter line on the same team
+    instead (e.g. 2+ rather than 3+), or skip.
 
 ## 6. Write the report and save
 Write `reports/<YYYY-MM-DD>.md` containing:
