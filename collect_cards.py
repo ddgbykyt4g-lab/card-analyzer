@@ -652,6 +652,17 @@ def american_to_decimal(ml) -> float | None:
     return 1 + (ml / 100 if ml > 0 else 100 / -ml) if ml else None
 
 
+def espn_moneyline(comp: dict) -> tuple[list[float | None], str]:
+    """Decimal home/draw/away odds from an ESPN competition's first odds entry (closing line, else opening),
+    and the provider name. ESPN sometimes sends `"odds": [null]`, so every level may be missing."""
+    odds = (comp.get("odds") or [None])[0] or {}
+    ml = odds.get("moneyline") or {}
+    dec = [american_to_decimal(((ml.get(k) or {}).get("close") or {}).get("odds")
+                               or ((ml.get(k) or {}).get("open") or {}).get("odds"))
+           for k in ("home", "draw", "away")]
+    return dec, ((odds.get("provider") or {}).get("name") or "espn").lower()
+
+
 async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str, days: int = 10) -> None:
     """Scheduled league matches for the next `days` from ESPN (fixtures.csv only looks a few days ahead).
     Teams matched by ESPN id. Fills 1X2 prices from ESPN's bookmaker line where football-data has none yet."""
@@ -726,13 +737,8 @@ async def load_espn_fixtures(ctx: BrowserContext, db: DB, code: str, season: str
                                       external_id=COALESCE(external_id, ?) WHERE match_id=?""",
                                (ko_s, f"espn-fx:{eid}", mid))
             added += 1
-            odds = (comp.get("odds") or [{}])[0]
-            ml = odds.get("moneyline") or {}
-            dec = [american_to_decimal(((ml.get(k) or {}).get("close") or {}).get("odds")
-                                       or ((ml.get(k) or {}).get("open") or {}).get("odds"))
-                   for k in ("home", "draw", "away")]
+            dec, provider = espn_moneyline(comp)
             if all(dec):
-                provider = ((odds.get("provider") or {}).get("name") or "espn").lower()
                 priced += db.store_prices(mid, dec, f"espn:{provider}", overwrite=False)
     db.commit()
     log.info("ESPN fixtures %s: %d upcoming matches in the next %d days (%d priced from ESPN)", code, added, days, priced)

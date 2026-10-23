@@ -136,3 +136,19 @@ def test_fixtures_csv_lagging_a_moved_fixture_adds_no_second_row(db, tmp_path, m
     asyncio.run(cc.load_upcoming(None, d, ["EPL"], "2026-27"))
     assert d.one("SELECT COUNT(*) FROM matches") == 1
     assert d.one("SELECT kickoff_utc FROM matches WHERE match_id = 1") == "2026-10-11T15:30:00Z"  # ESPN's date kept
+
+
+def test_espn_moneyline_handles_null_odds():
+    """ESPN sends `"odds": [null]` for some leagues; the fixtures loader must skip prices, not crash."""
+    from collect_cards import espn_moneyline
+    for comp in ({}, {"odds": None}, {"odds": []}, {"odds": [None]}, {"odds": [{"moneyline": None}]}):
+        assert espn_moneyline(comp) == ([None, None, None], "espn")
+
+
+def test_espn_moneyline_reads_close_then_open():
+    from collect_cards import espn_moneyline
+    comp = {"odds": [{"provider": {"name": "DraftKings"}, "moneyline": {
+        "home": {"close": {"odds": "+150"}}, "draw": {"open": {"odds": "+220"}}, "away": {"close": {"odds": "-120"}}}}]}
+    dec, provider = espn_moneyline(comp)
+    assert provider == "draftkings"
+    assert [round(x, 3) for x in dec] == [2.5, 3.2, round(1 + 100 / 120, 3)]
