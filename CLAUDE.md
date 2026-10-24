@@ -99,7 +99,9 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.
-- `odds_snapshots`, `bookmakers` and `markets` have no collector yet; ask before adding an odds source.
+- `odds_snapshots`, `bookmakers` and `markets` have no automatic collector; ask before adding an odds source.
+  Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` and loaded with
+  `python agent/log_prices.py --db cards.db data/prices/<file>` (UK times; re-running is harmless).
 
 ## Reporting
 After a run, summarise flagged bets: fixture, referee, bookmaker, market, line, odds,
