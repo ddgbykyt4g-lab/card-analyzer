@@ -201,3 +201,12 @@
 
 @ 2026-10-24 14:31 | Santander v Espanol | away    # after line-ups (bet taken)
 2.5 4/6 21/20
+
+@ 2026-10-24 17:44 | Man United v Bournemouth | away
+0.5 1/33 15/2
+1.5 3/10 21/10
+2.5 23/20 6/10
+3.5 10/3 1/6
+4.5 8/1 1/33
+5.5 18/1 -
+6.5 66/1 -
