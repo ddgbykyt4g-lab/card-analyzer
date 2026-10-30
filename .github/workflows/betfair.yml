@@ -51,9 +51,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/exchange/
+          git add data/exchange/   # only this folder: cards.db changes here (team aliases) are discarded below
           git diff --cached --quiet && exit 0
           git commit -q -m "Betfair prices $(date -u +%Y-%m-%dT%H:%MZ)"
           git checkout -- . && git clean -fdq
-          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; git rebase --abort 2>/dev/null || true; sleep 5; done
           exit 1

@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from collect_cards import DB  # noqa: E402
-from price_sheet import MARKETS, find_match, parse_odds  # noqa: E402
+from price_sheet import MARKETS, find_match, parse_odds, refuse_exchange  # noqa: E402
 from value_finder import ISO  # noqa: E402
 
 UK = ZoneInfo("Europe/London")
@@ -64,6 +64,7 @@ def market_id(con: sqlite3.Connection, kind: str) -> int:
 
 
 def log_blocks(db: DB, blocks: list[dict], book: str) -> int:
+    refuse_exchange(book)  # Betfair prices come from agent/betfair.py, as the CLV reference
     con = db.con
     con.execute("INSERT OR IGNORE INTO bookmakers (name) VALUES (?)", (book,))
     book_id = con.execute("SELECT bookmaker_id FROM bookmakers WHERE name = ?", (book,)).fetchone()[0]

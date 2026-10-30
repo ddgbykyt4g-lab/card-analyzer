@@ -148,3 +148,109 @@ def test_health_flags_quiet_exchange_log(db, tmp_path):
     (folder / "2026-10.csv").write_text("captured_at,match_id\n2026-10-09T18:00:00Z,1\n")
     assert "nothing logged since 2026-10-09 18:00" in exchange_problem(db, now, folder)
     assert exchange_problem(db, datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc), folder) is None  # recent
+
+
+# ───────────── match identity across collector runs, idempotency, empty input ─────────────
+def logged_row(match_id, home="Arsenal", away="Leeds", kickoff=KICKOFF, ext="", captured="2026-10-10T10:30:00Z"):
+    return dict(captured_at=captured, match_id=str(match_id), kickoff_utc=kickoff, bf_event_id="35",
+                bf_market_id="1.1", market_name="Cards Over/Under 4.5", market_code="TOTAL_CARDS", line="4.5",
+                back_over="2.0", back_over_size="10", lay_over="2.04", lay_over_size="5", back_under="2.0",
+                back_under_size="10", lay_under="2.04", lay_under_size="5", total_matched="100",
+                external_id=ext, home=home, away=away)
+
+
+def write_rows(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    return path
+
+
+def snapshot_matches(con):
+    return [m for (m,) in con.execute("""SELECT o.match_id FROM odds_snapshots o JOIN bookmakers b USING (bookmaker_id)
+                                         WHERE b.name = 'Betfair Exchange'""")]
+
+
+def test_import_refinds_match_after_merge_and_id_reuse(db, tmp_path):
+    # logged as match 1 (Arsenal v Leeds, ESPN 999); a later run merged it into a new row 3 and gave id 1's
+    # teams to nobody: row 1 is now a different fixture (id reused after a delete)
+    db.execute("INSERT INTO teams (name, country) VALUES ('Chelsea', 'England')")
+    db.execute("UPDATE matches SET home_team_id = 3, away_team_id = 2 WHERE match_id = 1")  # id 1 reused
+    db.execute("""INSERT INTO matches (match_id, season_id, kickoff_utc, home_team_id, away_team_id, status, external_id)
+                  VALUES (3, 1, ?, 1, 2, 'scheduled', 'espn:999')""", (KICKOFF,))
+    db.commit()
+    by_espn = write_rows(tmp_path / "a.csv", [logged_row(1, ext="espn-fx:999")])
+    import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [by_espn])
+    assert snapshot_matches(db) == [3]
+    by_teams = write_rows(tmp_path / "b.csv", [logged_row(1, captured="2026-10-10T10:40:00Z")])  # no ESPN id
+    import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [by_teams])
+    assert snapshot_matches(db) == [3, 3]  # never attached to the reused id 1 (Chelsea v Leeds)
+
+
+def test_import_follows_moved_fixture_and_drops_postponed(db, tmp_path):
+    db.execute("UPDATE matches SET kickoff_utc = '2026-10-10T14:00:00Z' WHERE match_id = 1")  # moved 2.5 hours
+    db.commit()
+    p = write_rows(tmp_path / "m.csv", [logged_row(1)])
+    stats = import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [p])
+    assert stats["snapshots_added"] == 1 and stats["skipped"] == 0
+    db.execute("UPDATE matches SET kickoff_utc = '2026-11-04T19:45:00Z' WHERE match_id = 1")  # re-played weeks later
+    db.commit()
+    p2 = write_rows(tmp_path / "p.csv", [logged_row(1, captured="2026-10-10T10:45:00Z")])
+    stats = import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [p2])
+    assert stats["snapshots_added"] == 0 and stats["skipped"] == 1
+    db.execute("UPDATE matches SET status = 'postponed' WHERE match_id = 1")
+    db.commit()
+    assert import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [p2])["skipped"] == 1
+
+
+def test_import_old_rows_without_identity_trust_match_id(db, tmp_path):
+    row = {k: v for k, v in logged_row(1).items() if k not in ("external_id", "home", "away")}
+    p = write_rows(tmp_path / "old.csv", [row])
+    assert import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [p])["snapshots_added"] == 1
+
+
+def test_import_is_idempotent_and_safe_without_files(db, tmp_path, monkeypatch):
+    assert import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [])["rows"] == 0
+    empty = tmp_path / "2026-10.csv"
+    empty.write_text("")
+    assert import_csvs(db, datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc), [empty])["rows"] == 0
+    monkeypatch.setattr(betfair, "OUT_DIR", tmp_path / "missing")
+    db.close()
+    assert betfair.main(["import", "--db", str(tmp_path / "t.db")]) == 0
+    con = sqlite3.connect(tmp_path / "t.db")
+    bet = add_bet(con, "TOTAL_CARDS", "over", 4.5, 2.30)
+    p = write_rows(tmp_path / "x.csv", [logged_row(1)])
+    after_ko = datetime(2026, 10, 10, 13, 0, tzinfo=timezone.utc)
+    first = import_csvs(con, after_ko, [p])
+    assert first["snapshots_added"] == 1 and first["clv_filled"] == 1
+    snap = lambda: con.execute("SELECT COUNT(*), SUM(is_closing) FROM odds_snapshots").fetchone()
+    clv = lambda: con.execute("SELECT closing_odds, clv FROM value_bets WHERE bet_id = ?", (bet,)).fetchone()
+    before = (snap(), clv())
+    again = import_csvs(con, after_ko, [p])
+    assert again["snapshots_added"] == 0 and again["clv_filled"] == 0 and (snap(), clv()) == before
+
+
+def test_snapshot_rows_carry_fixture_identity(db, tmp_path):
+    db.execute("UPDATE matches SET external_id = 'espn-fx:777' WHERE match_id = 1")
+    db.commit()
+    db.close()
+    bdb = DB(str(tmp_path / "t.db"), None)
+    out = tmp_path / "exchange"
+    snapshot(FakeBetfair(), bdb, datetime(2026, 10, 9, 18, 0, tzinfo=timezone.utc), 36, out)
+    row = read(out / "2026-10.csv")[0]
+    assert (row["external_id"], row["home"], row["away"]) == ("espn-fx:777", "Arsenal", "Leeds")
+
+
+def test_value_finder_ignores_sharp_books(db):
+    from value_finder import latest_quotes
+    db.execute("INSERT INTO bookmakers (name, is_sharp) VALUES ('Betfair Exchange', 1)")
+    total = db.execute("SELECT market_id FROM markets WHERE code = 'TOTAL_CARDS'").fetchone()[0]
+    for book in (1, 2):
+        db.execute("""INSERT INTO odds_snapshots (match_id, bookmaker_id, market_id, line, over_odds, under_odds,
+                      captured_at) VALUES (1, ?, ?, 4.5, 2.0, 1.9, '2026-10-10T09:00:00Z')""", (book, total))
+    db.commit()
+    db.row_factory = sqlite3.Row
+    quotes = latest_quotes(db, 1, datetime(2026, 10, 10, 10, 0, tzinfo=timezone.utc), 24)
+    assert [q["bookmaker"] for q in quotes] == ["Sky Bet"]

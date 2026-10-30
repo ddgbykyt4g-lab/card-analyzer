@@ -66,8 +66,13 @@ NOT_COUNT = re.compile(r"points|player|first|last|1st|2nd|half|red card|handicap
 RUNNER = re.compile(r"^(?P<side>over|under)\s+(?P<line>\d+(?:\.\d+)?)", re.I)
 CSV_FIELDS = ["captured_at", "match_id", "kickoff_utc", "bf_event_id", "bf_market_id", "market_name",
               "market_code", "line", "back_over", "back_over_size", "lay_over", "lay_over_size",
-              "back_under", "back_under_size", "lay_under", "lay_under_size", "total_matched"]
+              "back_under", "back_under_size", "lay_under", "lay_under_size", "total_matched",
+              "external_id", "home", "away"]
 PRICE_FIELDS = CSV_FIELDS[8:16]
+# The logger reads the committed cards.db; the daily run's collector may later merge a duplicate fixture
+# (deleting one row) or give a reused id to a new fixture. So each row also carries the fixture's ESPN id
+# and our team names, and the import re-finds the match from those rather than trusting match_id alone.
+MOVED_TOO_FAR = timedelta(days=1)  # logged kickoff this far from the current one: a postponed, re-played match
 
 
 class LoginRefused(SystemExit):
@@ -175,9 +180,12 @@ def split_event(name: str) -> tuple[str, str] | None:
 
 # ───────────────────────────── Logging prices ─────────────────────────────
 def upcoming(con: sqlite3.Connection, now: datetime, hours: float) -> list[sqlite3.Row]:
-    return con.execute("""SELECT match_id, kickoff_utc, home_team_id, away_team_id FROM matches
-                          WHERE status = 'scheduled' AND kickoff_utc > ? AND kickoff_utc <= ?
-                          ORDER BY kickoff_utc""",
+    return con.execute("""SELECT m.match_id, m.kickoff_utc, m.home_team_id, m.away_team_id, m.external_id,
+                                 h.name AS home_name, a.name AS away_name
+                          FROM matches m JOIN teams h ON h.team_id = m.home_team_id
+                          JOIN teams a ON a.team_id = m.away_team_id
+                          WHERE m.status = 'scheduled' AND m.kickoff_utc > ? AND m.kickoff_utc <= ?
+                          ORDER BY m.kickoff_utc""",
                        (now.strftime(ISO), (now + timedelta(hours=hours)).strftime(ISO))).fetchall()
 
 
@@ -202,7 +210,8 @@ def match_events(db: DB, fixtures: list[sqlite3.Row], events: list[dict]) -> dic
                 print(f"Unmatched Betfair event {ev['name']!r}: add the team to name_aliases (source 'betfair')")
             continue
         out[str(ev["id"])] = dict(match_id=fx["match_id"], kickoff_utc=fx["kickoff_utc"], home=teams[0],
-                                  away=teams[1], name=ev["name"])
+                                  away=teams[1], name=ev["name"], external_id=fx["external_id"] or "",
+                                  home_name=fx["home_name"], away_name=fx["away_name"])
     db.commit()
     return out
 
@@ -267,7 +276,8 @@ def snapshot(client, db: DB, now: datetime, hours: float, out_dir: Path = OUT_DI
             row = dict(captured_at=now.strftime(ISO), match_id=info["ev"]["match_id"],
                        kickoff_utc=info["ev"]["kickoff_utc"], bf_event_id=info["event_id"], bf_market_id=bk["marketId"],
                        market_name=info["name"], market_code=info["code"], line=f"{info['line']:g}",
-                       total_matched=f"{bk.get('totalMatched') or 0:.2f}")
+                       total_matched=f"{bk.get('totalMatched') or 0:.2f}", external_id=info["ev"]["external_id"],
+                       home=info["ev"]["home_name"], away=info["ev"]["away_name"])
             for side in ("over", "under"):
                 ex = by_sel.get(info["sel"].get(side), {})
                 (bp, bs), (lp, ls) = best(ex.get("availableToBack", [])), best(ex.get("availableToLay", []))
@@ -357,22 +367,51 @@ def ensure_book(con: sqlite3.Connection) -> tuple[int, dict[str, int]]:
     return book, markets
 
 
+class Fixtures:
+    """Current matches, to re-find each logged row's match (see the note at CSV_FIELDS)."""
+
+    def __init__(self, con: sqlite3.Connection):
+        rows = con.execute("""SELECT m.match_id, m.kickoff_utc, m.external_id, h.name, a.name FROM matches m
+                              JOIN teams h ON h.team_id = m.home_team_id JOIN teams a ON a.team_id = m.away_team_id
+                              WHERE m.status IN ('scheduled', 'finished')""").fetchall()
+        self.kickoff = {mid: ko for mid, ko, *_ in rows}
+        self.teams = {mid: (h, a) for mid, _, _, h, a in rows}
+        self.by_espn = {ext.split(":", 1)[1]: mid for mid, _, ext, *_ in rows if (ext or "").startswith("espn")}
+
+    def resolve(self, r: dict) -> int | None:
+        """ESPN event id first; else the logged match_id if it is still the same teams; else the same teams
+        kicking off nearest the logged time. Rows from before these columns existed trust match_id."""
+        mid = int(r["match_id"])
+        if not r.get("home"):
+            return mid if mid in self.kickoff else None
+        ext = (r.get("external_id") or "").split(":", 1)[-1]
+        if ext and ext in self.by_espn:
+            return self.by_espn[ext]
+        pair = (r["home"], r["away"])
+        if self.teams.get(mid) == pair:
+            return mid
+        logged = parse_iso(r["kickoff_utc"])
+        near = [m for m, t in self.teams.items() if t == pair]
+        return min(near, key=lambda m: abs(parse_iso(self.kickoff[m]) - logged), default=None)
+
+
 def import_csvs(con: sqlite3.Connection, now: datetime, paths: list[Path]) -> dict:
     book, markets = ensure_book(con)
-    # The database's kickoff wins over the logged one, in case a fixture moved after logging
-    kickoff = {mid: ko for mid, ko in con.execute("SELECT match_id, kickoff_utc FROM matches "
-                                                  "WHERE status IN ('scheduled', 'finished')")}
+    fixtures = Fixtures(con)
     rows = []
     for p in sorted(paths):
         with p.open(newline="") as fh:
             rows += [r for r in csv.DictReader(fh)]
-    added = 0
+    added = skipped = 0
     closing: dict[tuple, dict] = {}
     for r in rows:
-        mid = int(r["match_id"])
-        if mid not in kickoff:
+        mid = fixtures.resolve(r)
+        # the database's kickoff wins over the logged one, in case a fixture moved after logging; a match
+        # postponed and re-played days later had its Betfair markets voided, so those prices are dropped
+        if mid is None or abs(parse_iso(fixtures.kickoff[mid]) - parse_iso(r["kickoff_utc"])) > MOVED_TOO_FAR:
+            skipped += 1
             continue
-        r = dict(r, kickoff_utc=kickoff[mid])
+        r = dict(r, kickoff_utc=fixtures.kickoff[mid])
         if r["captured_at"] >= r["kickoff_utc"]:
             continue
         over, under = _f(r["back_over"]), _f(r["back_under"])
@@ -392,7 +431,7 @@ def import_csvs(con: sqlite3.Connection, now: datetime, paths: list[Path]) -> di
                     (r["captured_at"], mid, book, markets[code], line))
     clv = fill_clv(con, closing, book)
     con.commit()
-    return dict(rows=len(rows), snapshots_added=added, closing=len(closing), clv_filled=clv)
+    return dict(rows=len(rows), skipped=skipped, snapshots_added=added, closing=len(closing), clv_filled=clv)
 
 
 def fill_clv(con: sqlite3.Connection, closing: dict[tuple, dict], book: int) -> int:

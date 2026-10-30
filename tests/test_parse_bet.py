@@ -74,3 +74,22 @@ def test_rejects_zero_stake():
 def test_team_named_without_colon_is_a_team_bet(text, away, team):
     bet = parse_bet(text)
     assert (bet["away"], bet["team"], bet["kind"]) == (away, team, "team" if team else "total")
+
+
+def test_log_bet_refuses_exchange_bookmakers():
+    import pytest
+    from datetime import datetime, timezone
+    from price_sheet import log_bet, refuse_exchange
+    now = datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc)
+    for text in ("Arsenal v Leeds over 4.5 @ 2.2 Betfair Exchange £10",
+                 "Arsenal v Leeds: Leeds over 1.5 @ 1.9 Smarkets exchange £10"):
+        with pytest.raises(SystemExit, match="exchange"):
+            log_bet(None, None, text, now, 3, 0.05)  # refused before the database is touched
+    refuse_exchange("Sky Bet")  # a bookmaker passes
+
+
+def test_log_prices_refuses_exchange_book(tmp_path):
+    import pytest
+    from agent.log_prices import log_blocks
+    with pytest.raises(SystemExit, match="exchange"):
+        log_blocks(None, [], "Betfair Exchange")

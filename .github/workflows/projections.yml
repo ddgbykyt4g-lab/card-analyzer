@@ -1,6 +1,7 @@
 # Daily pre-kickoff projection log (Sunday to Friday; the Saturday run logs its own): updates fixtures,
 # referees and 1X2 prices, appends the model's projection for every match in the next 2 days to
-# data/projections.csv and pushes that file, plus cards.db when a bet settled (otherwise the Saturday run saves it).
+# data/projections.csv and pushes that file, plus cards.db when a bet settled or got its Betfair closing price
+# (otherwise the Saturday run saves it).
 # Score the log with: python agent/score_projections.py cards.db data/projections.csv
 name: Projection log
 
@@ -68,4 +69,11 @@ jobs:
           fi
           git diff --cached --quiet || git commit -q -m "Projection log ${{ steps.season.outputs.day }}"
           git checkout -- . && git clean -fdq
-          git pull -q --rebase origin main && git push -q origin HEAD:main
+          # betfair.yml pushes data/exchange/ every 30 minutes from its own concurrency group: no file overlap, so the
+          # rebase can't conflict, but its push can land between our pull and push, so retry
+          for i in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            git rebase --abort 2>/dev/null || true
+            [ "$i" = 3 ] && exit 1
+            sleep 5
+          done

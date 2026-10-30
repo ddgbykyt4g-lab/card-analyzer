@@ -87,9 +87,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add cards.db reports/ data/
+          git add cards.db reports/ data/projections.csv   # never data/exchange/: betfair.yml owns it
           git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
-          git pull -q --rebase origin main && git push -q origin HEAD:main
+          # betfair.yml pushes data/exchange/ every 30 minutes from its own concurrency group: no file overlap, so the
+          # rebase can't conflict, but its push can land between our pull and push, so retry
+          for i in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            git rebase --abort 2>/dev/null || true
+            [ "$i" = 3 ] && exit 1
+            sleep 5
+          done
 
       - name: Phone alert
         if: always()

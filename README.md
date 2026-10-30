@@ -50,7 +50,7 @@ Home v Away | market | over 3.5 @ <odds> | Sky Bet | model p | adjusted p | reas
 ```
 
 Season rules: flat £10 stakes, shortlist only, overs only at about +8-10% EV, model frozen until about
-200 settled bets or the end of the season.
+300 scored pre-kickoff projections (the freeze rule in `CLAUDE.md`, which wins if the two ever differ).
 
 ## Betfair Exchange prices (read-only)
 
