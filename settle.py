@@ -157,6 +157,10 @@ def report(con: sqlite3.Connection) -> None:
     adj = [r for r in manual if "adj_p=" in (r[7] or "")]
     line("  ...with a research-adjusted prob", adj)
     line("Model paper bets (value_finder)", paper)
+    clv = [c for (c,) in con.execute("SELECT clv FROM value_bets WHERE clv IS NOT NULL AND notes LIKE 'manual entry%'")]
+    if clv:
+        print(f"\n  Closing line value, your bets vs the Betfair Exchange close: {len(clv)} bets, "
+              f"mean {sum(clv) / len(clv):+.1%}, beat the close on {sum(c > 0 for c in clv)}")
     print("\n'exp W' = wins the model expected; 'flat-1u' = profit staking 1 unit on each settled bet.")
     print("Hundreds of settled bets are needed before any of these numbers mean much.")
 

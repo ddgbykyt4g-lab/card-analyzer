@@ -48,6 +48,7 @@ jobs:
       - name: Collect data and settle bets
         run: |
           python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups 2>&1 | tee /tmp/collect.log
+          python agent/betfair.py import --db cards.db   # Betfair price log -> odds_snapshots, closing prices, CLV
           python settle.py --db cards.db --report | tee /tmp/settle.txt
 
       - name: Data health check

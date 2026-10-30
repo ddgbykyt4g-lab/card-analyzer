@@ -48,9 +48,11 @@ jobs:
 
       - name: Update fixtures
         run: |
-          pending() { python -c "import sqlite3; print(sqlite3.connect('cards.db').execute(\"SELECT COUNT(*) FROM value_bets WHERE result = 'pending'\").fetchone()[0])"; }
+          # pending bets and bets with a closing price: if either changes, cards.db is pushed
+          pending() { python -c "import sqlite3; print(sqlite3.connect('cards.db').execute(\"SELECT SUM(result = 'pending'), COUNT(clv) FROM value_bets\").fetchone())"; }
           pending > /tmp/pending_before
           python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups
+          python agent/betfair.py import --db cards.db
           pending > /tmp/pending_after
 
       - name: Log projections
@@ -62,7 +64,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/projections.csv
           if ! cmp -s /tmp/pending_before /tmp/pending_after; then
-            git add cards.db   # a bet settled: keep it (cards.db is otherwise only saved on Saturdays)
+            git add cards.db   # a bet settled or got its closing price: keep it (cards.db is otherwise only saved on Saturdays)
           fi
           git diff --cached --quiet || git commit -q -m "Projection log ${{ steps.season.outputs.day }}"
           git checkout -- . && git clean -fdq

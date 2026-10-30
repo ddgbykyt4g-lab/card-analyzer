@@ -48,6 +48,17 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   model version, card weights, expected cards, pmf 0-20). It pushes that file, and cards.db only when a bet settled. Score it with
   `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
 
+- `.github/workflows/betfair.yml` (every 30 minutes, 10:07-21:37 UTC): read-only Betfair Exchange card prices
+  (`agent/betfair.py log`, delayed app key, never bets). Matches Betfair events to our fixtures (unmatched teams:
+  `name_aliases` source 'betfair'), keeps full-time card over/under markets (total, home, away) and appends best
+  back/lay to `data/exchange/<YYYY-MM>.csv` on a price change and every run in the last 90 minutes before kickoff;
+  card-like market names it sees go to `data/exchange/catalogue.csv` with how they parsed. Secrets
+  `BETFAIR_APP_KEY`, `BETFAIR_USERNAME`, `BETFAIR_PASSWORD` (+ `BETFAIR_CERT`/`BETFAIR_KEY` for certificate
+  login); repo variable `BETFAIR_RUNNER` picks a self-hosted UK runner, since Betfair refuses US logins.
+  `python agent/betfair.py import --db cards.db` (run by the Saturday and daily workflows) loads the CSVs into
+  `odds_snapshots` as bookmaker "Betfair Exchange" (`is_sharp` 1, settlement 1/1/1, no staff), marks the last
+  row within 90 minutes of kickoff `is_closing`, and fills `value_bets.closing_odds` (fair: normalised back/lay
+  midpoints) and `clv` for bets on the same match, market and half line. `settle.py --report` prints mean CLV.
 - `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
   source errors in the collector log, bets stuck pending, matches about to kick off with no referee: 48 hours ahead, La Liga 18). Any problem changes the phone alert title to
   "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
@@ -99,7 +110,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.
-- `odds_snapshots`, `bookmakers` and `markets` have no automatic collector; ask before adding an odds source.
+- The only automatic odds source is the read-only Betfair logger above; ask before adding another.
   Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` and loaded with
   `python agent/log_prices.py --db cards.db data/prices/<file>` (UK times; re-running is harmless).
 

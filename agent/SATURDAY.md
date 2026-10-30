@@ -25,6 +25,7 @@ you produce a shortlist; the user decides and places bets.
 Season label: August–December of year Y → `Y-(Y+1 last two digits)` (e.g. `2026-27`); January–July → `(Y-1)-YY`.
 ```
 python collect_cards.py --db cards.db --season <label> --no-cups
+python agent/betfair.py import --db cards.db
 python settle.py --db cards.db --report
 ```
 If the collector logs unmatched team names, fix them with `name_aliases` rows (see `CLAUDE.md`), then rerun.

@@ -85,3 +85,13 @@ def test_paper_bet_gets_result_but_no_profit(db):
     finish(db, home=(3, 0, 0), away=(3, 0, 0))
     settle(db)
     assert result(db, bet) == ("won", 6.0, 0.0)
+
+
+def test_report_shows_clv_when_known(db, capsys):
+    from settle import report
+    a = add_bet(db, "TOTAL_CARDS", "over", 4.5, 2.30)
+    b = add_bet(db, "TOTAL_CARDS", "under", 5.5, 1.80)
+    db.execute("UPDATE value_bets SET clv = 0.10 WHERE bet_id = ?", (a,))
+    db.execute("UPDATE value_bets SET clv = -0.04 WHERE bet_id = ?", (b,))
+    report(db)
+    assert "vs the Betfair Exchange close: 2 bets, mean +3.0%, beat the close on 1" in capsys.readouterr().out
