@@ -41,7 +41,7 @@ from zoneinfo import ZoneInfo
 from playwright.async_api import BrowserContext, Page, Route, async_playwright
 from playwright_stealth import Stealth
 
-from settle import settle
+from settle import ESPN_CARDS, read_espn_cards, settle
 
 log = logging.getLogger("collector")
 UK = ZoneInfo("Europe/London")
@@ -62,6 +62,7 @@ ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 HOST_INTERVAL = {"www.football-data.co.uk": 2.0, "site.api.espn.com": 1.5}
 DEFAULT_INTERVAL = 4.0
 BLOCKED_RESOURCES = {"image", "media", "font"}
+PREINSTALLED_CHROMIUM = "/opt/pw-browsers/chromium"  # Claude cloud containers ship their own build here
 
 
 # ───────────────────────────── HTTP helpers ─────────────────────────────
@@ -211,6 +212,7 @@ class DB:
         if not self._has_schema():
             raise SystemExit("Schema missing: pass --init-schema card_value_schema.sql")
         self._has_prices: bool | None = None
+        self.resplit = False  # --resplit: redo every two-yellow split from football-data's figures
 
     def _has_schema(self) -> bool:
         return bool(self.q("SELECT 1 FROM sqlite_master WHERE type='table' AND name='leagues'"))
@@ -359,13 +361,14 @@ class DB:
 
     def upsert_cards(self, match_id: int, team_id: int, is_home: int, yellows: int,
                      second_yellows: int, straight_reds: int, fouls: int | None) -> None:
-        """football-data rows: yellows exclude the first yellow of a two-yellow dismissal and all reds come
-        as straight_reds. split_reds corrects that from ESPN events (marking reds_1h); a reload keeps the
-        split while football-data's totals still agree with it, otherwise resets it for a fresh check."""
+        """football-data rows: all reds come as straight_reds, and the yellow count treats a two-yellow
+        dismissal differently by league and season (two_yellow_split). split_reds corrects both from ESPN
+        events (marking reds_1h); a reload keeps the split while football-data's totals still agree with
+        it under one of those conventions, otherwise resets it for a fresh check."""
         old = self.con.execute("""SELECT yellows, second_yellows, straight_reds, reds_1h FROM match_team_cards
                                   WHERE match_id=? AND team_id=?""", (match_id, team_id)).fetchone()
-        if old and old[3] is not None and second_yellows == 0 \
-                and (old[0] - old[1], old[1] + old[2]) == (yellows, straight_reds):
+        if old and old[3] is not None and second_yellows == 0 and not (self.resplit and old[1]) \
+                and old[1] + old[2] == straight_reds and yellows - old[0] in (-old[1], 0, old[1]):
             self.con.execute("UPDATE match_team_cards SET fouls=COALESCE(?, fouls) WHERE match_id=? AND team_id=?",
                              (fouls, match_id, team_id))
             return
@@ -566,11 +569,22 @@ async def backfill_referees(ctx: BrowserContext, db: DB, code: str, season: str)
 SECOND_YELLOW = re.compile(r"^second yellow", re.I)
 
 
+def two_yellow_split(fd_yellows: int, fd_reds: int, espn_yellows: int, two: int) -> tuple[int, int, int]:
+    """(yellows, second_yellows, straight_reds) for a team with `two` two-yellow dismissals. Stored
+    yellows include each dismissed player's first yellow. football-data's yellow count holds 0, 1 or 2
+    of that player's yellows: neither (England to 2025-26), the first only, or both (the four
+    continental leagues, and England from 2026-27). ESPN lists the first as a yellow event and the
+    second as the red, so the convention is whichever brings football-data's count closest to ESPN's
+    (ties go to "both", the usual one)."""
+    k = min((2, 1, 0), key=lambda k: abs(fd_yellows + (1 - k) * two - espn_yellows))
+    return fd_yellows + (1 - k) * two, two, fd_reds - two
+
+
 async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> None:
-    """football-data counts a two-yellow dismissal as one red and drops its first yellow. For finished
-    matches with reds, ESPN's card events say which reds were second yellows: those move to
-    second_yellows and their first yellow is added back. Also fills yellows_1h/reds_1h, which mark the
-    match as checked. A team whose ESPN red count differs from football-data's is left as it is."""
+    """football-data counts a two-yellow dismissal as one red. For finished matches with reds, ESPN's
+    card events say which reds were second yellows: those move to second_yellows, and the yellow count
+    is put on one footing (two_yellow_split). Also fills yellows_1h/reds_1h, which mark the match as
+    checked. A team whose ESPN red count differs from football-data's is left as it is."""
     cfg = LEAGUES[code]
     sid = db.season_of(code, season)
     if sid is None:
@@ -607,7 +621,7 @@ async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> Non
                 continue
             checked += 1
             del todo[mid]
-            tally = {tid: dict(y1=0, r=0, r1=0, two=0) for tid, _ in side.values()}
+            tally = {tid: dict(y=0, y1=0, r=0, r1=0, two=0) for tid, _ in side.values()}
             for k in summary.get("keyEvents", []):
                 kind = (k.get("type") or {}).get("type")
                 if kind not in ("yellow-card", "red-card"):
@@ -618,6 +632,7 @@ async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> Non
                 first_half = (k.get("period") or {}).get("number") == 1
                 t = tally[tid]
                 if kind == "yellow-card":
+                    t["y"] += bool(k.get("participants"))  # a card with no player is a staff card
                     t["y1"] += first_half
                 else:
                     t["r"] += 1
@@ -635,12 +650,78 @@ async def split_reds(ctx: BrowserContext, db: DB, code: str, season: str) -> Non
                     continue
                 db.con.execute("""UPDATE match_team_cards SET yellows=?, second_yellows=?, straight_reds=?,
                                       yellows_1h=?, reds_1h=? WHERE match_id=? AND team_id=?""",
-                               (row[0] + t["two"], t["two"], row[2] - t["two"], t["y1"], t["r1"],
+                               (*two_yellow_split(row[0], row[2], t["y"], t["two"]), t["y1"], t["r1"],
                                 mid, tid))
                 split += t["two"]
         db.commit()
     log.info("ESPN %s %s: %d two-yellow dismissals split out in %d checked matches (%d team red counts disagreed, "
              "%d matches not found)", code, season, split, checked, mismatch, len(todo))
+
+
+# ───────────────────────────── Source 3c: ESPN card counts (cross-check) ─────────────────────────────
+ESPN_CARD_FIELDS = ["espn_id", "league", "kickoff_utc", "home", "away", "home_yellows", "home_reds", "home_staff",
+                    "away_yellows", "away_reds", "away_staff", "fetched_at"]
+
+
+def espn_card_counts(comp: dict) -> dict[str, dict[str, int]] | None:
+    """{'home': {yellows, reds, staff}, 'away': {...}} from an ESPN scoreboard competition. Player cards
+    only: a card event with no player is a staff card. A second yellow is the red event (its first
+    yellow is a yellow event), so yellows + reds is the Sky Bet count."""
+    try:
+        side = {c["team"]["id"]: c["homeAway"] for c in comp["competitors"]}
+    except (KeyError, TypeError):
+        return None
+    out = {ha: dict(yellows=0, reds=0, staff=0) for ha in ("home", "away")}
+    if set(side.values()) != set(out):
+        return None
+    for d in comp.get("details") or []:
+        ha = side.get((d.get("team") or {}).get("id"))
+        if ha is None or not (d.get("yellowCard") or d.get("redCard")):
+            continue
+        key = "staff" if not d.get("athletesInvolved") else "reds" if d.get("redCard") else "yellows"
+        out[ha][key] += 1
+    return out
+
+
+async def load_espn_cards(ctx: BrowserContext, db: DB, codes: list[str], path: Path, days: int = 14) -> None:
+    """Card counts from ESPN's events for matches finished in the last `days` days, kept in a CSV beside
+    the database (the schema has nowhere for a second source). football-data stays the model's source;
+    settle.py and agent/health.py compare the two, because either can be wrong for a match."""
+    now = datetime.now(timezone.utc)
+    months = sorted({(now - timedelta(days=d)).strftime("%Y%m") for d in (0, days)})
+    rows = {r["espn_id"]: r for r in csv.DictReader(path.open())} if path.exists() else {}
+    names = dict(db.q("SELECT team_id, name FROM teams"))
+    seen = changed = 0
+    for code in codes:
+        for ym in months:
+            board = await fetch_json(ctx, f"{ESPN_BASE}/{LEAGUES[code]['espn_slug']}/scoreboard?dates={ym}&limit=200")
+            for ev in (board or {}).get("events", []):
+                try:
+                    comp = ev["competitions"][0]
+                    finished = comp["status"]["type"]["completed"]
+                    kickoff = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
+                except (KeyError, IndexError, TypeError, ValueError):
+                    continue
+                counts = espn_card_counts(comp)
+                match = db.q("SELECT home_team_id, away_team_id FROM matches WHERE match_id=?",
+                             db.match_by_espn(str(ev["id"])))
+                if not finished or counts is None or not match or now - kickoff > timedelta(days=days):
+                    continue
+                seen += 1
+                row = dict(espn_id=str(ev["id"]), league=code, kickoff_utc=kickoff.strftime(ISO),
+                           home=names[match[0][0]], away=names[match[0][1]],
+                           **{f"{ha}_{k}": str(v) for ha, c in counts.items() for k, v in c.items()})
+                old = rows.get(row["espn_id"], {})
+                if any(old.get(k) != v for k, v in row.items()):
+                    rows[row["espn_id"]] = dict(row, fetched_at=now.strftime(ISO))
+                    changed += 1
+    if changed:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=ESPN_CARD_FIELDS)
+            w.writeheader()
+            w.writerows(sorted(rows.values(), key=lambda r: (r["kickoff_utc"], r["espn_id"])))
+    log.info("ESPN card counts: %d finished matches in the last %d days, %d new or changed", seen, days, changed)
 
 
 # ───────────────────────────── Source 3a: ESPN week-ahead league fixtures ─────────────────────────────
@@ -1155,11 +1236,17 @@ async def _gather_logged(label: str, coros) -> None:
 
 async def run(args: argparse.Namespace) -> None:
     db = DB(args.db, args.init_schema)
+    db.resplit = args.resplit
     seasons = [shift_season(args.season, -n) for n in range(args.history, -1, -1)]
     async with Stealth().use_async(async_playwright()) as p:
         proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
-        browser = await p.chromium.launch(headless=not args.headed,
-                                          proxy={"server": proxy} if proxy else None)
+        launch = dict(headless=not args.headed, proxy={"server": proxy} if proxy else None)
+        try:
+            browser = await p.chromium.launch(**launch)
+        except Exception as exc:  # a container whose preinstalled Chromium isn't the build this Playwright pins
+            if "Executable doesn't exist" not in str(exc) or not os.path.exists(PREINSTALLED_CHROMIUM):
+                raise
+            browser = await p.chromium.launch(executable_path=PREINSTALLED_CHROMIUM, **launch)
         ctx = await browser.new_context(locale="en-GB", timezone_id="Europe/London",
                                         viewport={"width": 1440, "height": 900})
         await ctx.route("**/*", _block_heavy)
@@ -1181,6 +1268,8 @@ async def run(args: argparse.Namespace) -> None:
             if not args.no_espn:
                 await _gather_logged("ESPN red cards",
                                      (split_reds(ctx, db, c, s) for c in args.leagues for s in seasons))
+                await _gather_logged("ESPN card counts",
+                                     [load_espn_cards(ctx, db, args.leagues, Path(args.espn_cards))])
                 await _gather_logged("ESPN team ids",
                                      (load_espn_team_ids(ctx, db, c, s) for c in args.leagues for s in seasons))
                 await _gather_logged("ESPN fixtures",
@@ -1192,7 +1281,7 @@ async def run(args: argparse.Namespace) -> None:
                                                    for c in args.leagues if c in feeds))
             if args.ref_url:
                 await _gather_logged("Appointments", (scrape_appointments(ctx, db, u) for u in args.ref_url))
-            settle(db.con)  # pending bets on matches whose cards just arrived
+            settle(db.con, read_espn_cards(args.espn_cards))  # pending bets on matches whose cards just arrived
         finally:
             await browser.close()
             db.con.close()
@@ -1212,6 +1301,10 @@ def main() -> None:
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
     ap.add_argument("--referees-only", action="store_true",
                     help="only load appointed referees for upcoming fixtures (about a minute)")
+    ap.add_argument("--resplit", action="store_true",
+                    help="one-off: redo every two-yellow split in the loaded seasons (use with --history)")
+    ap.add_argument("--espn-cards", default=str(ESPN_CARDS), metavar="CSV",
+                    help="where ESPN's card counts for recent matches are kept (cross-check for settlement)")
     ap.add_argument("--headed", action="store_true", help="visible browser; helps clear JS challenges")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()

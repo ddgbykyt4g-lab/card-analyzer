@@ -4,7 +4,8 @@ construction, since every row was written before its match kicked off.
 
 Per match it uses the latest projection logged before the actual kickoff, and counts cards with the weights
 stored in that row (Sky Bet: yellow 1, second yellow 1, straight red 1). Reports log-loss, Brier over lines
-2.5-6.5, RMSE and over-rate calibration, per model version, next to the walk-forward backtest figures.
+2.5-6.5, RMSE and over-rate calibration, per model version, next to the walk-forward backtest figures,
+then projected against actual cards by league and by projected level (where the model runs high or low).
 Usage: python agent/score_projections.py [cards.db] [data/projections.csv]
 """
 import csv
@@ -14,8 +15,11 @@ import sys
 from collections import defaultdict
 
 LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
-# glm-v4 walk-forward backtest, untuned seasons 2024-27, all leagues, Sky Bet card count
-BACKTEST = {"log-loss": -2.161, "rmse": 2.203}
+# glm-v4.1 walk-forward backtest, untuned seasons 2024-27, all leagues, Sky Bet card count
+# (glm-v4, before two-yellow dismissals were counted once: -2.162 and 2.202)
+BACKTEST = {"log-loss": -2.111, "rmse": 2.054}
+LEVELS = (3.5, 4.0, 4.5, 5.0)  # edges of the projected-cards bands
+BANDS = [f"under {LEVELS[0]:g}"] + [f"{a:g}-{b:g}" for a, b in zip(LEVELS, LEVELS[1:])] + [f"{LEVELS[-1]:g}+"]
 
 
 def resolve_match(r: dict, kickoff: dict[int, str], by_ext: dict[str, int],
@@ -70,6 +74,12 @@ def score(db: str, path: str) -> dict[str, dict]:
         pmf = [float(x) for x in r["pmf"].split()]
         k = int(round(actual))
         p_k = pmf[k] if k < len(pmf) else max(1 - sum(pmf), 1e-6)
+        mu = float(r["mu_total"]) / float(r["w_yellow"])
+        band = BANDS[sum(mu >= e for e in LEVELS)]
+        for key in (f"league {r['league']}", f"level {band}"):
+            acc[key]["n"] += 1
+            acc[key]["mu"] += mu
+            acc[key]["y"] += actual
         for key in (r["model_version"], "all"):
             a = acc[key]
             a["n"] += 1
@@ -89,7 +99,7 @@ def report(acc: dict[str, dict]) -> str:
     if not acc:
         return "No scored matches yet: the log needs finished matches that were projected before kickoff."
     out = []
-    for key in sorted(acc, key=lambda k: (k == "all", k)):
+    for key in sorted((k for k in acc if not k.startswith(("league ", "level "))), key=lambda k: (k == "all", k)):
         a, n = acc[key], acc[key]["n"]
         out += [f"{key}: {n:.0f} matches",
                 f"  log-loss {a['ll'] / n:+.3f} (backtest {BACKTEST['log-loss']:+.3f})   "
@@ -98,6 +108,12 @@ def report(acc: dict[str, dict]) -> str:
                 f"  mean cards: projected {a['mu'] / n:.2f}, actual {a['y'] / n:.2f}",
                 "  over rate, projected vs actual: "
                 + "  ".join(f"o{L:g} {a[f'p{L}'] / n:.0%}/{a[f'o{L}'] / n:.0%}" for L in LINES)]
+    for title, prefix in (("By league", "league "), ("By projected cards", "level ")):
+        out.append(f"{title} (matches, projected, actual, gap):")
+        for key in sorted((k for k in acc if k.startswith(prefix)),
+                          key=lambda k: BANDS.index(k[6:]) if prefix == "level " else k):
+            a, n = acc[key], acc[key]["n"]
+            out.append(f"  {key[len(prefix):]:22} {n:4.0f}  {a['mu'] / n:.2f}  {a['y'] / n:.2f}  {(a['y'] - a['mu']) / n:+.2f}")
     out.append("Under a few hundred matches these figures are noisy; compare with the backtest, not with zero.")
     return "\n".join(out)
 

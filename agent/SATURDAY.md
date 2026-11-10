@@ -19,7 +19,8 @@ you produce a shortlist; the user decides and places bets.
    mkdir -p ~/.pki/nssdb && (certutil -d sql:$HOME/.pki/nssdb -L >/dev/null 2>&1 || certutil -d sql:$HOME/.pki/nssdb -N --empty-password)
    certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n agent-proxy-ca -i /root/.ccr/agent-proxy-ca.crt
    ```
-   Do not run `playwright install`; `requirements.txt` pins the version that matches the preinstalled Chromium.
+   Do not run `playwright install`. The container's preinstalled Chromium (`/opt/pw-browsers/chromium`) is often a
+   newer build than the one the pinned Playwright expects; the collector falls back to it by itself.
 
 ## 2. Update data and settle
 Season label: August–December of year Y → `Y-(Y+1 last two digits)` (e.g. `2026-27`); January–July → `(Y-1)-YY`.
@@ -28,7 +29,9 @@ python collect_cards.py --db cards.db --season <label> --no-cups
 python settle.py --db cards.db --report
 ```
 If the collector logs unmatched team names, fix them with `name_aliases` rows (see `CLAUDE.md`), then rerun.
-Keep the `--report` output for the summary.
+Keep the `--report` output for the summary. A line starting `CHECK:` is a bet that football-data and ESPN
+would settle differently: leave it pending, put it first in the report and the alert, and ask the user what
+the bookmaker paid (they record it with `settle.py --confirm`). Never guess it.
 
 ## 3. Price today's matches
 ```
@@ -54,7 +57,7 @@ There is no live odds feed yet, so value is expressed as **the minimum price wor
   optimistic on overs). `p_push` is the sheet's push probability, 0 on half lines; for whole-number match lines
   start from the sheet's push-aware `min_over`/`min_under` (+5%) and scale overs up to +8%.
 - Shortlist at most 8 selections where the research gives a concrete reason to back that side, the adjusted
-  probability is at least 25%, and the minimum odds are realistic for that market. Flag correlated selections
+  probability is at least 40% (see Tail bets below), and the minimum odds are realistic for that market. Flag correlated selections
   (same match, or same team across markets). If nothing qualifies, the shortlist is "No bet".
 - Provisional matches (no referee) are allowed but must be labelled.
 - Cautions (from losing bets, 18 Oct 2026; see `agent/POST_FREEZE.md`). Apply them when choosing and say so in
@@ -66,6 +69,14 @@ There is no live odds feed yet, so value is expressed as **the minimum price wor
   - **Edges above about +20% on a team line of 3+ cards or longer**: treat as a sign the model is missing
     something (it disagrees with the market by most of a card). Shortlist the shorter line on the same team
     instead (e.g. 2+ rather than 3+), or skip.
+  - **Tail bets**: an over the model gives under 40% is a pass even when it shows value; if a shorter line on
+    the same market clears the bar, that line is the selection.
+  - **Unders**: none while the live log shows the model projecting too few cards (`agent/score_projections.py`),
+    and never when the bookmaker rates the match or team above the model (derbies, notorious teams).
+- When the user sends prices, log them (`agent/log_prices.py`) and judge them with
+  `python agent/check_prices.py --db cards.db data/prices/<file>`, which applies these rules the same way each time.
+  A match total that clears the bar in the morning with its referee appointed is worth taking then: the price
+  usually shortens by kickoff (Sunderland v Chelsea, 8 Nov 2026: 21/20 at 08:09, 20/23 by 13:00).
 
 ## 6. Write the report and save
 Write `reports/<YYYY-MM-DD>.md` containing:

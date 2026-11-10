@@ -17,14 +17,32 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
      referee schedule, Lega Serie A API, Ligue 1 API, LaLiga API. Usually published days ahead; La Liga's
      the day before each match (by 16:00 Madrid). Until then a match uses the league-average referee
    - Add `--headed` if an appointments page shows a bot challenge
-   - Splits red cards into second yellows and straight reds from ESPN match events (football-data counts
-     a two-yellow dismissal as one red and drops its first yellow); `yellows_1h`/`reds_1h` mark checked teams
+   - Splits red cards into second yellows and straight reds from ESPN match events; `yellows_1h`/`reds_1h`
+     mark checked teams. football-data counts a two-yellow dismissal as one red, and its yellow count holds
+     neither of that player's yellows (England to 2025-26), the first only, or both (the four continental
+     leagues; England from 2026-27). `two_yellow_split` picks whichever matches ESPN's yellow events, so
+     stored yellows always include the first yellow once. `--resplit` (with `--history N`) redoes every split
+   - Writes ESPN's player-card counts for matches finished in the last 14 days to `data/espn_cards.csv`
+     (keyed on ESPN's event id; staff cards counted apart). football-data stays the model's card source
    - Settles pending bets automatically at the end of every run, voiding bets on matches not played
      within 3 days of the original kickoff date (`python settle.py --db cards.db` to run it alone)
 2. Find value:
    `python value_finder.py --db cards.db --json`
    - Add `--dry-run` to evaluate without writing to `value_bets`
 3. Price sheet for the next 7 days: `python price_sheet.py --db cards.db` (`--json` available)
+
+## Two card sources
+football-data and ESPN disagree on about 3% of team card counts, and either can be wrong (football-data had
+the wrong yellows for all four Premier League matches of 7 Nov 2026, which settled a winning bet as lost).
+- `settle.py` checks every bet with a stake against `data/espn_cards.csv`: same result from both sources,
+  it settles; different results, the bet stays pending and is listed as `CHECK` until the user says what the
+  bookmaker paid (`python settle.py --db cards.db --confirm BET_ID won|lost|push|void`); only ESPN has the
+  match yet (football-data lags a day or two), it settles on ESPN's count and is listed later if
+  football-data differs. Paper bets settle on football-data alone. A confirmed bet is never touched again.
+- `agent/health.py` reports those bets, and any league where the sources differ in 4 or more matches from
+  the last 10 days (one or two is normal). The daily workflow sends a "Bet needs checking" phone alert.
+- `python agent/espn_match.py "Home v Away" [--lineups]`: ESPN's line-ups and running player-card count
+  (a booked manager is listed apart: it doesn't count for Sky Bet). Read-only, for checking a bet by hand.
 
 ## Saturday agent
 - A scheduled routine runs `agent/SATURDAY.md` each Saturday morning: updates data, settles bets,
@@ -56,9 +74,12 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   summaries (available from about April 2022, `ESPN_FIRST_MONTH`). The 2022-26 gap was backfilled once
   with `agent/backfill_referees.py` (CSV kept on the `referee-backfill` branch); out-of-sample it improved
   every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`; with fouls, `glm-v4`.
+  `glm-v4.1` (from 2026-11-10) is the same model on corrected card data: two-yellow dismissals had been stored
+  2 cards too high outside England (and in England from 2026-27), about 6% of matches.
 
 ## Tests
-- `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules); runs on GitHub on
+- `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules, the two card sources,
+  price-check verdicts); runs on GitHub on
   every push that touches Python. Add a test with any change to parsing, pricing or settlement.
 
 ## Model
@@ -66,6 +87,7 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   `data/projections.csv` has a few hundred scored matches (about 300) and glm-v4 has been judged on them with
   `agent/score_projections.py`. Bug fixes in data collection are fine; anything that changes projections waits.
   Candidate changes and the evidence for them are queued in `agent/POST_FREEZE.md`.
+  `python agent/score_projections.py` also shows projected against actual cards by league and by projected level.
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,
@@ -96,6 +118,10 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
   yellow 1, straight red 1, no staff cards (two yellows = 2, yellow then straight red = 2). Pricing refits
   the GLM in the bookmaker's card units; `price_sheet.py` prices for Sky Bet by default (`--book NAME`).
 - Track record: `python settle.py --db cards.db --report` (user's bets vs model view vs paper bets).
+- Checking logged prices: `python agent/check_prices.py --db cards.db data/prices/<file>` prints value, the
+  minimum odds and a verdict per line for matches not yet kicked off, applying the shortlist rules of
+  `agent/SATURDAY.md` step 5 (overs +8%, no tail bets under 40%, long team lines, heavy underdogs, no unders
+  for now). It reads only; the user decides and places.
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.

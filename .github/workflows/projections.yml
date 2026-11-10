@@ -56,11 +56,19 @@ jobs:
       - name: Log projections
         run: python agent/log_projections.py --db cards.db --days 2
 
+      - name: Alert on bets the two card sources would settle differently
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          python settle.py --db cards.db | grep '^CHECK' > /tmp/check.txt || true
+          [ ! -s /tmp/check.txt ] || agent/notify.sh "Bet needs checking" "$(cat /tmp/check.txt)"
+
       - name: Commit and push the log
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/projections.csv
+          [ ! -f data/espn_cards.csv ] || git add data/espn_cards.csv   # ESPN's card counts: the settlement cross-check
           if ! cmp -s /tmp/pending_before /tmp/pending_after; then
             git add cards.db   # a bet settled: keep it (cards.db is otherwise only saved on Saturdays)
           fi
