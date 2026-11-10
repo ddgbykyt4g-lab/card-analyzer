@@ -11,6 +11,9 @@
   Tap *Run workflow* once only: a second tap logs the bet twice.
 - **Shop bets:** same, with the shop as bookmaker (`Coral shop £10`). If the match has already kicked
   off, fill in *placed* with when you placed it (`2026-10-10 11:30`, UK time).
+- **"Bet needs checking" alert:** the two card sources (football-data and ESPN) would settle one of your
+  bets differently, so it's left unsettled. Check what the bookmaker paid, then record it with
+  `python settle.py --db cards.db --confirm <bet number> won` (or `lost`).
 
 ## Saturday routine (free)
 
