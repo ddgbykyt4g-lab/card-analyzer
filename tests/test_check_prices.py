@@ -104,3 +104,47 @@ def test_score_report_breaks_down_by_league_and_projected_level(db, tmp_path):
     assert "By league (matches, projected, actual, gap):" in text
     assert "  EPL                       1  4.20  5.00  +0.80" in text
     assert "  4-4.5                     1  4.20  5.00  +0.80" in text
+
+
+# ── experiment A: the model blended with the bookmaker's de-vigged price ──
+def test_market_probability_removes_the_margin():
+    from check_prices import OVERROUND, market_prob
+    assert market_prob(11 / 6, 11 / 6) == (pytest.approx(0.5), False)                 # 5/6 each side
+    p, assumed = market_prob(1.95, 19 / 11)
+    assert (round(p, 3), assumed) == (0.470, False)
+    p, assumed = market_prob(2.0, None)                                               # an overs-only screen
+    assert assumed and p == pytest.approx(0.5 / OVERROUND)
+    assert market_prob(None, 2.0) == (None, False)
+
+
+def test_blend_is_halfway_on_the_logit_scale():
+    from check_prices import blend
+    assert blend(0.63, 0.50) == pytest.approx(0.566, abs=0.001)
+    assert blend(0.5, 0.5) == pytest.approx(0.5)
+    assert blend(0.8, 0.2) == pytest.approx(0.5)
+    assert blend(0.63, 0.50, w=1) == pytest.approx(0.63) and blend(0.63, 0.50, w=0) == pytest.approx(0.50)
+
+
+def test_blend_rule_sits_beside_the_current_rule_without_changing_it():
+    """Leeds v Tottenham passes both; Espanyol 3+ at 19/20 passes the current rule only."""
+    leeds = verdicts(rows((3.5, 0.79, 4 / 3, 2.9), (4.5, 0.63, 11 / 6, 11 / 6), (5.5, 0.46, 2.8, 15 / 11),
+                          (6.5, 0.30, 5.0, 1.125)))
+    assert [(r["verdict"].split(":")[0], r["blend_verdict"]) for r in leeds] == [
+        ("no", "no"), ("BET", "BET"), ("longer line", "longer line"), ("pass", "pass: tail")]
+    bet = next(r for r in leeds if r["line"] == 4.5)
+    assert (round(bet["market"], 2), round(bet["blend"], 3), round(bet["value_blend"], 3)) == (0.50, 0.566, 0.038)
+    espanyol = verdicts(rows((1.5, 0.79, 11 / 9, 3.7), (2.5, 0.57, 1.95, 19 / 11), (3.5, 0.34, 3.7, 11 / 9)), team_line=True)
+    assert [(r["verdict"].split(":")[0], r["blend_verdict"]) for r in espanyol] == [
+        ("no", "no"), ("BET", "no"), ("pass", "pass: tail")]
+    whole = verdicts([dict(line=4.0, p_over=0.45, p_push=0.20, over=2.0, under=2.0)])
+    assert whole[0]["blend"] is None and whole[0]["blend_verdict"] == "-"              # no blend where a push is possible
+
+
+def test_benchmark_matches_are_fixed_by_the_fixture_id_alone():
+    sys.path.insert(0, str(ROOT / "review"))
+    from experiment_a import ONE_IN, is_benchmark
+    ids = [f"espn-fx:{401870000 + i}" for i in range(4000)]
+    share = sum(map(is_benchmark, ids)) / len(ids)
+    assert abs(share - 1 / ONE_IN) < 0.03
+    assert is_benchmark("espn-fx:401878758") == is_benchmark("espn:401878758")         # the id, not its prefix
+    assert not is_benchmark(None) and not is_benchmark("")

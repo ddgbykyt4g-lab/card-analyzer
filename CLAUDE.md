@@ -123,6 +123,12 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   minimum odds and a verdict per line for matches not yet kicked off, applying the shortlist rules of
   `agent/SATURDAY.md` step 5 (overs +8%, no tail bets under 40%, long team lines, heavy underdogs, no unders
   for now). It reads only; the user decides and places.
+- Experiment A (from 2026-11-10, plan and pass marks in `review/EXPERIMENT_A.md`; background in `REVIEW.md`):
+  `check_prices.py` also prints the model blended 50/50 with Sky Bet's de-vigged price and a second "blend
+  rule" verdict (blended value +2%). The current-rule verdict is unchanged. `python review/experiment_a.py pick`
+  lists the week's benchmark matches (about a quarter of fixtures, fixed by a hash of the ESPN id, chosen
+  without the model); `... score` reports blend against Sky Bet. Don't change `BLEND_W`, `BLEND_EV`, the
+  start date or the benchmark rule while it runs: a change is a new experiment.
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.
