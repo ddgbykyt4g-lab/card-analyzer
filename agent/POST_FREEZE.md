@@ -22,6 +22,31 @@ CLAUDE.md.
 - **17 Oct shortlist:** Sky Bet priced all four shortlisted matches 0.5–1.4 cards above the model; actual
   cards across 11 finished matches averaged 5.1 against 4.0 projected.
 
+- **Card data fix (10 Nov, glm-v4.1):** two-yellow dismissals were stored 2 cards too high in La Liga, Serie A,
+  Bundesliga and Ligue 1 (every season) and in the EPL from 2026-27: football-data's yellow count already
+  holds both yellows there, and the collector added one back. 582 team rows, about 6% of matches; three-season
+  averages fall 0.11-0.15 a match in the four continental leagues. A data bug fix, not a model change.
+  Walk-forward backtest (2024-27), both fits scored against the corrected outcomes: RMSE 2.062 -> 2.054,
+  log-loss -2.1153 -> -2.1109, a small real gain. (Scored against their own data the figures are 2.202 -> 2.054,
+  but most of that drop is the outcomes losing their +2 outliers, not a better model; don't quote it as a gain.)
+  The `glm-v4.1` label is only true once `collect_cards.py --resplit` has run on main: the normal collector
+  keeps rows it has already split, so merging the code alone fixes nothing in `cards.db`. Rows logged before
+  the resplit carry `glm-v4`, after it `glm-v4.1`; both are scored against the corrected counts.
+- **Live log by league (to 9 Nov, 283 scored matches, corrected counts):** 4.19 cards against 3.99 projected,
+  but not evenly: La Liga +0.62 a match (50 matches), EPL +0.51 (50), SPL +0.26, Bundesliga and Ligue 1 +0.12,
+  Serie A -0.29 (60). Those projections were fitted on the inflated continental data, so from glm-v4.1 the
+  continental projections drop about 0.1-0.15 and their gaps widen by as much (Serie A's narrows). By projected
+  level the gap sits in the 3.5-4.5 band; under 3.5 is about right. `agent/score_projections.py` now prints
+  both tables. Points at test 3 (fast league level), not a flat lift.
+- **Two card sources:** football-data and ESPN differ on about 3% of team counts. Where they differ the model
+  still trains on football-data. Whether to prefer ESPN's count on those rows is a question for the review:
+  compare the two against Sky Bet's settlements in `value_bets` notes ("confirmed by user").
+- **Bet #13, Liverpool v Arsenal over 4.5 (1 Nov, won):** no cards in the first half on 8 fouls, 5 after it.
+  A referee's leniency in top-of-the-table games isn't in the model (only his 108-match average).
+- **Prices move toward the model:** Sunderland v Chelsea over 4.5 was 21/20 at 08:09 on 8 Nov (+9%) and 20/23
+  by 13:00 (-1%); the match had 9 cards. Sky Bet's two-sided card markets otherwise sit on or above the model
+  on Sundays and for derbies (Athletic v Real Sociedad priced 1.4 cards above it).
+
 ## Tests, in order
 
 1. **Curved underdog term.** The win-probability gap enters linearly, so big underdogs get ever more cards.
@@ -45,4 +70,5 @@ CLAUDE.md.
 ## Betting cautions until then
 
 Applied in `agent/SATURDAY.md` step 5: be wary of heavy underdogs' card lines, check team lines' card-prone
-players start, and treat team-line edges above about +20% on 3+ lines as a warning.
+players start, treat team-line edges above about +20% on 3+ lines as a warning, pass on overs the model gives
+under 40%, and back no unders while the live log runs above the model. `agent/check_prices.py` applies them.

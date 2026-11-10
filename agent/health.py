@@ -3,13 +3,19 @@
 
 The collector logs source failures and carries on, so a green GitHub run can still mean stale data.
 Checks: results missing for matches played 2-10 days ago, source errors in the collector log, bets left
-pending well after kickoff, matches about to kick off with no referee. Prints "OK" or one problem per line; exit code is always 0.
-Usage: python agent/health.py cards.db [collector.log]
+pending well after kickoff, matches about to kick off with no referee, football-data and ESPN counting
+different cards (a staked bet they'd settle differently, or several matches in one league).
+Prints "OK" or one problem per line; exit code is always 0.
+Usage: python agent/health.py cards.db [collector.log] [espn_cards.csv]
 """
 import re
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from settle import ESPN_CARDS, describe, disputes, read_espn_cards  # noqa: E402
 
 ISO = "%Y-%m-%dT%H:%M:%SZ"
 LOG_PROBLEMS = re.compile(r"Traceback|step failed|no rows at|fixtures\.csv unavailable|Unmatched team|"
@@ -17,11 +23,35 @@ LOG_PROBLEMS = re.compile(r"Traceback|step failed|no rows at|fixtures\.csv unava
 # Hours ahead by which each league has named its referees (La Liga: the day before, by 16:00 Madrid)
 REF_HOURS = {"EPL": 48, "SPL": 48, "BUNDES": 48, "SERIEA": 48, "LIGUE1": 48, "LALIGA": 18}
 STALE_RESULTS = 3  # more unfinished matches than this from 2-10 days ago means results stopped arriving
+# football-data and ESPN differ on about 1 match in 15, so one or two a league in 10 days is normal
+SOURCE_GAP = 4
 
 
-def problems(db: str, log: str | None, now: datetime) -> list[str]:
+def source_gaps(con: sqlite3.Connection, espn: dict[str, dict], since: str) -> dict[str, list[str]]:
+    """Per league, recent finished matches where a team's card count (yellows + reds) differs by source."""
+    gaps: dict[str, list[str]] = {}
+    for eid, row in espn.items():
+        if row["kickoff_utc"] < since:
+            continue
+        ours = dict(con.execute(
+            """SELECT CASE WHEN c.is_home THEN 'home' ELSE 'away' END, c.yellows + c.second_yellows + c.straight_reds
+               FROM matches m JOIN match_team_cards c USING (match_id)
+               WHERE m.external_id IN (?, ?) AND m.status = 'finished'""", (f"espn:{eid}", f"espn-fx:{eid}")))
+        if len(ours) == 2 and any(ours[ha] != int(row[f"{ha}_yellows"]) + int(row[f"{ha}_reds"]) for ha in ours):
+            gaps.setdefault(row["league"], []).append(f"{row['home']} v {row['away']}")
+    return gaps
+
+
+def problems(db: str, log: str | None, now: datetime, espn: dict[str, dict] | None = None) -> list[str]:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     out = []
+    espn = espn or {}
+    out += [f"{describe(d)} Check what the bookmaker paid, then run settle.py --confirm {d['bet_id']} won|lost."
+            for d in disputes(con, espn)]
+    for code, games in sorted(source_gaps(con, espn, (now - timedelta(days=10)).strftime(ISO)).items()):
+        if len(games) >= SOURCE_GAP:
+            out.append(f"{code}: football-data and ESPN count different cards in {len(games)} matches from the "
+                       f"last 10 days (e.g. {games[-1]}). One source has bad data, so recent results may be wrong.")
     lo, hi = (now - timedelta(days=10)).strftime(ISO), (now - timedelta(days=2)).strftime(ISO)
     for code, n in con.execute(
             """SELECT l.code, COUNT(*) FROM matches m JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
@@ -60,7 +90,8 @@ def problems(db: str, log: str | None, now: datetime) -> list[str]:
 
 
 def main() -> int:
-    found = problems(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None, datetime.now(timezone.utc))
+    found = problems(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None, datetime.now(timezone.utc),
+                     read_espn_cards(sys.argv[3] if len(sys.argv) > 3 else ESPN_CARDS))
     print("\n".join(found) if found else "OK")
     return 0
 
