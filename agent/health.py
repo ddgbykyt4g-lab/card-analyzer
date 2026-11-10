@@ -4,10 +4,11 @@
 The collector logs source failures and carries on, so a green GitHub run can still mean stale data.
 Checks: results missing for matches played 2-10 days ago, source errors in the collector log, bets left
 pending well after kickoff, matches about to kick off with no referee, football-data and ESPN counting
-different cards (a staked bet they'd settle differently, or several matches in one league).
-Prints "OK" or one problem per line; exit code is always 0.
+different cards (a staked bet they'd settle differently, or several matches in one league), the Betfair
+price log going quiet. Prints "OK" or one problem per line; exit code is always 0.
 Usage: python agent/health.py cards.db [collector.log] [espn_cards.csv]
 """
+import csv
 import re
 import sqlite3
 import sys
@@ -23,6 +24,26 @@ LOG_PROBLEMS = re.compile(r"Traceback|step failed|no rows at|fixtures\.csv unava
 # Hours ahead by which each league has named its referees (La Liga: the day before, by 16:00 Madrid)
 REF_HOURS = {"EPL": 48, "SPL": 48, "BUNDES": 48, "SERIEA": 48, "LIGUE1": 48, "LALIGA": 18}
 STALE_RESULTS = 3  # more unfinished matches than this from 2-10 days ago means results stopped arriving
+EXCHANGE_DIR = Path(__file__).resolve().parents[1] / "data" / "exchange"
+EXCHANGE_STALE = timedelta(days=3)
+
+
+def exchange_problem(con: sqlite3.Connection, now: datetime, folder: Path = EXCHANGE_DIR) -> str | None:
+    """Once the Betfair logger has run, flag it going quiet while matches are being played."""
+    files = sorted(folder.glob("20??-??.csv"))
+    if not files:
+        return None  # not set up yet
+    latest = ""
+    for f in files[-2:]:
+        with f.open(newline="") as fh:
+            latest = max([latest] + [r["captured_at"] for r in csv.DictReader(fh)])
+    since = latest or (now - EXCHANGE_STALE).strftime(ISO)  # matches played since the last logged price
+    played = con.execute("SELECT COUNT(*) FROM matches WHERE kickoff_utc BETWEEN ? AND ?",
+                         (since, now.strftime(ISO))).fetchone()[0]
+    if latest < (now - EXCHANGE_STALE).strftime(ISO) and played:
+        return (f"Betfair price log: nothing logged since {latest[:16].replace('T', ' ') or 'ever'} UTC while {played} matches were "
+                "played. Check the 'Betfair prices' workflow in the Actions tab.")
+    return None
 # football-data and ESPN differ on about 1 match in 15, so one or two a league in 10 days is normal
 SOURCE_GAP = 4
 
@@ -74,6 +95,8 @@ def problems(db: str, log: str | None, now: datetime, espn: dict[str, dict] | No
         if n:
             out.append(f"{code}: {n} match(es) in the next {hours} hours have no referee. The referee feed may have "
                        "broken, so those prices use the league-average referee.")
+    if msg := exchange_problem(con, now):
+        out.append(msg)
     con.close()
     if log:
         seen: dict[str, int] = {}

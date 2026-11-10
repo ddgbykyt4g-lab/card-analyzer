@@ -53,4 +53,21 @@ Home v Away | market | over 3.5 @ <odds> | Sky Bet | model p | adjusted p | reas
 ```
 
 Season rules: flat £10 stakes, shortlist only, overs only at about +8-10% EV, model frozen until about
-200 settled bets or the end of the season.
+300 scored pre-kickoff projections (the freeze rule in `CLAUDE.md`, which wins if the two ever differ).
+
+## Betfair Exchange prices (read-only)
+
+`.github/workflows/betfair.yml` logs Betfair's card prices every 30 minutes so each bet gets a closing line value
+(CLV) against the exchange close: the honest test of whether the model beats the market. It never places bets.
+
+One-off setup:
+1. **Delayed app key (free):** logged in to betfair.com, open the Accounts API visualiser
+   (developer.betfair.com), run `createDeveloperAppKeys` with any name, and copy the key marked `1.0-DELAY`.
+2. **Secrets:** repository Settings → Secrets and variables → Actions → New secret: `BETFAIR_APP_KEY`,
+   `BETFAIR_USERNAME`, `BETFAIR_PASSWORD`. If your account has two-step login on, also `BETFAIR_CERT` and
+   `BETFAIR_KEY` (a self-signed certificate uploaded under My Account → Security → Automated betting program access).
+3. **Test:** Actions → *Betfair prices* → *Run workflow* during the day. If it fails with
+   `BETTING_RESTRICTED_LOCATION`, GitHub ran it in the US: add a self-hosted runner on a UK machine and set the
+   repository variable `BETFAIR_RUNNER` to its label.
+4. After the first runs, check `data/exchange/catalogue.csv`: every card-like market Betfair listed, with how it
+   was read. Rows with an empty `parsed` column were skipped.

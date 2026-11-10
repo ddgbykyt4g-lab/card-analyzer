@@ -26,6 +26,7 @@ you produce a shortlist; the user decides and places bets.
 Season label: August–December of year Y → `Y-(Y+1 last two digits)` (e.g. `2026-27`); January–July → `(Y-1)-YY`.
 ```
 python collect_cards.py --db cards.db --season <label> --no-cups
+python agent/betfair.py import --db cards.db
 python settle.py --db cards.db --report
 ```
 If the collector logs unmatched team names, fix them with `name_aliases` rows (see `CLAUDE.md`), then rerun.
@@ -50,7 +51,9 @@ Then, per match, either keep the model probability or adjust it by **at most ±8
 the specific evidence. No evidence → no adjustment. Don't invent precision.
 
 ## 5. Build the shortlist
-There is no live odds feed yet, so value is expressed as **the minimum price worth taking**.
+Value is expressed as **the minimum Sky Bet price worth taking**. The Betfair Exchange prices that
+`agent/betfair.py import` loads are a closing-line (CLV) reference, not a price to bet at: don't shortlist
+Betfair, and don't use its prices to set the minimum odds.
 - Consider match totals (`lines`) and team lines (`team_lines`) from `/tmp/sheet.json`.
 - For a candidate, take the adjusted probability `p` and compute minimum odds: overs need +8% EV,
   `(1.08 - p_push) / p`; unders +5%, `(1.05 - p_push) / p` (the dashboard rule; the model runs 1–3 points
@@ -91,7 +94,8 @@ Write `reports/<YYYY-MM-DD>.md` containing:
 
 Then commit `cards.db` and the report and push:
 ```
-git add cards.db reports/ && git commit -m "Saturday shortlist <date>" && git fetch origin main && git rebase origin/main && git push origin HEAD:main
+git add cards.db reports/ && git commit -m "Saturday shortlist <date>"
+for i in 1 2 3; do git fetch origin main && git rebase origin/main && git push origin HEAD:main && break; git rebase --abort 2>/dev/null; sleep 5; done   # Betfair log pushes can land in between
 git fetch origin main && git status -sb | head -1   # must show main in sync with origin/main
 ```
 (add the attribution lines your environment requires to the commit message).

@@ -164,6 +164,14 @@ BET_RE = re.compile(  # "Home v Away[: market] over 4.5 @ 2.20 book [£10]"
     rf"^\s*(?P<home>.+?)\s+v(?:s\.?)?\s+(?P<away>[^:]+?)\s*(?::\s*(?P<target>.+?)\s+|\s+)(?:{SEL})"
     rf"\s*@\s*{ODDS}\s+(?P<book>.+?)(?:\s+(?P<stake>[£$€]?\s*\d+(?:\.\d+)?\s*(?:u|units?)?))?\s*$", re.I)
 DEFAULT_STAKE = 1.0  # units, when no stake is given
+# Exchange bets aren't supported yet: settle.py ignores commission and CLV is measured against Betfair itself
+EXCHANGE = re.compile(r"betfair|exchange", re.I)
+
+
+def refuse_exchange(book: str) -> None:
+    if EXCHANGE.search(book):
+        raise SystemExit(f"{book!r} looks like a betting exchange. Exchange bets aren't supported yet "
+                         "(no commission in settlement, and Betfair is the CLV reference): not logged.")
 
 
 def parse_odds(text: str) -> float:
@@ -253,6 +261,7 @@ def poisson_tail(mu: float, line: float, selection: str) -> tuple[float, float]:
 def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float, min_ev: float,
             placed: datetime | None = None, adjusted_p: float | None = None, reason: str | None = None) -> dict:
     bet = parse_bet(text)
+    refuse_exchange(bet["bookmaker"])
     adjusted_p = adjusted_p if adjusted_p is not None else bet.get("adjusted_p")
     reason = reason or bet.get("reason")
     if is_quarter_line(bet["line"]):

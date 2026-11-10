@@ -1,6 +1,7 @@
 # Daily pre-kickoff projection log (Sunday to Friday; the Saturday run logs its own): updates fixtures,
 # referees and 1X2 prices, appends the model's projection for every match in the next 2 days to
-# data/projections.csv and pushes that file, plus cards.db when a bet settled (otherwise the Saturday run saves it).
+# data/projections.csv and pushes that file, plus cards.db when a bet settled or got its Betfair closing price
+# (otherwise the Saturday run saves it).
 # Score the log with: python agent/score_projections.py cards.db data/projections.csv
 name: Projection log
 
@@ -48,9 +49,11 @@ jobs:
 
       - name: Update fixtures
         run: |
-          pending() { python -c "import sqlite3; print(sqlite3.connect('cards.db').execute(\"SELECT COUNT(*) FROM value_bets WHERE result = 'pending'\").fetchone()[0])"; }
+          # pending bets and bets with a closing price: if either changes, cards.db is pushed
+          pending() { python -c "import sqlite3; print(sqlite3.connect('cards.db').execute(\"SELECT SUM(result = 'pending'), COUNT(clv) FROM value_bets\").fetchone())"; }
           pending > /tmp/pending_before
           python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups
+          python agent/betfair.py import --db cards.db
           pending > /tmp/pending_after
 
       - name: Log projections
@@ -70,8 +73,15 @@ jobs:
           git add data/projections.csv
           [ ! -f data/espn_cards.csv ] || git add data/espn_cards.csv   # ESPN's card counts: the settlement cross-check
           if ! cmp -s /tmp/pending_before /tmp/pending_after; then
-            git add cards.db   # a bet settled: keep it (cards.db is otherwise only saved on Saturdays)
+            git add cards.db   # a bet settled or got its closing price: keep it (cards.db is otherwise only saved on Saturdays)
           fi
           git diff --cached --quiet || git commit -q -m "Projection log ${{ steps.season.outputs.day }}"
           git checkout -- . && git clean -fdq
-          git pull -q --rebase origin main && git push -q origin HEAD:main
+          # betfair.yml pushes data/exchange/ every 30 minutes from its own concurrency group: no file overlap, so the
+          # rebase can't conflict, but its push can land between our pull and push, so retry
+          for i in 1 2 3; do
+            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            git rebase --abort 2>/dev/null || true
+            [ "$i" = 3 ] && exit 1
+            sleep 5
+          done

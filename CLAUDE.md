@@ -53,21 +53,42 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
 
 ## Free Saturday run (GitHub Actions)
 - `.github/workflows/saturday.yml` runs each Saturday at 07:17 UK (06:17 in winter) without Claude:
-  collector, settle, price sheet saved to `reports/<date>-prices.md`, push, then a phone alert built by
+  collector, Betfair import, settle, price sheet saved to `reports/<date>-prices.md`, push, then a phone alert built by
   `agent/free_summary.py` (overs at +8% EV). No team-news research. Needs the `NTFY_TOPIC` repo secret;
   run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
   `reports/latest.md` (`agent/dashboard.py`).
 - `.github/workflows/log-bet.yml`: logs a bet from the GitHub app (inputs: bet, placed, adjusted_p,
-  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
-  `cards-db` concurrency group so they never push `cards.db` at the same time.
+  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert. The Saturday, log-bet and projections workflows share the
+  `cards-db` concurrency group so they never push `cards.db` at the same time. `betfair.yml` has its own group
+  (`betfair-log`) and commits only `data/exchange/`, which no other workflow writes, so it never conflicts with
+  them; each workflow retries its pull-rebase-push because a push from the other group can land in between.
 
-- `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's
+- `.github/workflows/projections.yml` (Sunday-Friday 08:47 UTC: 09:47 UK in summer) and the Saturday run append the model's
   pre-kickoff projection for every match in the next 2 days to `data/projections.csv` (`agent/log_projections.py`:
-  model version, card weights, expected cards, pmf 0-20). It pushes that file, and cards.db only when a bet settled. Score it with
+  model version, card weights, expected cards, pmf 0-20). It pushes that file, and cards.db only when a bet settled or a bet's Betfair closing price
+  (CLV) filled. Score it with
   `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
 
+- `.github/workflows/betfair.yml` (every 30 minutes, 10:07-21:37 UTC): read-only Betfair Exchange card prices
+  (`agent/betfair.py log`, delayed app key, never bets). Matches Betfair events to our fixtures (unmatched teams:
+  `name_aliases` source 'betfair'), keeps full-time card over/under markets (total, home, away) and appends best
+  back/lay to `data/exchange/<YYYY-MM>.csv` on a price change and every run in the last 90 minutes before kickoff;
+  card-like market names it sees go to `data/exchange/catalogue.csv` with how they parsed. Secrets
+  `BETFAIR_APP_KEY`, `BETFAIR_USERNAME`, `BETFAIR_PASSWORD` (+ `BETFAIR_CERT`/`BETFAIR_KEY` for certificate
+  login); repo variable `BETFAIR_RUNNER` picks a self-hosted UK runner, since Betfair refuses US logins.
+  The logger reads the committed cards.db, so each CSV row also carries the fixture's ESPN id and our team names;
+  the import re-finds the match from those (a later run may merge duplicate fixtures or reuse an id) and drops rows
+  logged for a kickoff more than a day from the current one (postponed, re-played matches).
+  `python agent/betfair.py import --db cards.db` (run by the Saturday and daily workflows) loads the CSVs into
+  `odds_snapshots` as bookmaker "Betfair Exchange" (`is_sharp` 1, settlement 1/1/1, no staff), marks the last
+  row within 90 minutes of kickoff `is_closing`, and fills `value_bets.closing_odds` (fair: normalised back/lay
+  midpoints) and `clv` for bets on the same match, market and half line. `settle.py --report` prints mean CLV.
+  Betfair prices are a CLV reference only: `value_finder.py` ignores sharp books (`is_sharp` 1) when looking for
+  value, and the shortlist and price sheet still give minimum odds for Sky Bet. The import never changes the model's
+  inputs, so projections and the price sheet are identical with or without it.
 - `agent/health.py` checks the data after each Saturday collect (results missing for recent matches,
-  source errors in the collector log, bets stuck pending, matches about to kick off with no referee: 48 hours ahead, La Liga 18). Any problem changes the phone alert title to
+  source errors in the collector log, bets stuck pending, matches about to kick off with no referee: 48 hours ahead, La Liga 18; and, once the Betfair logger has run, its
+  price log going quiet: nothing logged for 3 days while matches were played). Any problem changes the phone alert title to
   "DATA PROBLEM, check first" and puts a warning at the top of `reports/latest.md`.
 
 - Referees: football-data gives them for EPL only; SPL and the other four leagues get them from ESPN match
@@ -115,6 +136,8 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   - research-prompt line: `"Home v Away | market | over 3.5 @ 2.15 | Sky Bet | model p | adjusted p | reason"`
   - past bets: add `--placed "YYYY-MM-DD HH:MM"` (UK time); also `--adjusted-p 0.45 --reason "..."`.
   Bets that `value_finder.py` logs itself stay paper bets with stake 0.
+- Exchange bets aren't supported yet: `settle.py` ignores commission and CLV is measured against Betfair itself.
+  `price_sheet.py --log-bet` and `agent/log_prices.py` refuse a bookmaker name containing "Betfair" or "exchange".
 - Sky Bet card markets (total, home, away, each team) settle with `settlement_rules` yellow 1, second
   yellow 1, straight red 1, no staff cards (two yellows = 2, yellow then straight red = 2). Pricing refits
   the GLM in the bookmaker's card units; `price_sheet.py` prices for Sky Bet by default (`--book NAME`).
@@ -126,7 +149,7 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.
-- `odds_snapshots`, `bookmakers` and `markets` have no automatic collector; ask before adding an odds source.
+- The only automatic odds source is the read-only Betfair logger above; ask before adding another.
   Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` and loaded with
   `python agent/log_prices.py --db cards.db data/prices/<file>` (UK times; re-running is harmless).
 

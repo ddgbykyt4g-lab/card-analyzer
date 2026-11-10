@@ -1,0 +1,59 @@
+# Read-only Betfair Exchange card prices (agent/betfair.py log): every 30 minutes through the day, it
+# appends best back/lay prices for our fixtures' card markets to data/exchange/ and pushes that folder.
+# Never places bets. The Saturday and daily runs import the log into cards.db and fill closing line value.
+#
+# Needs repository secrets BETFAIR_APP_KEY (the free delayed key), BETFAIR_USERNAME, BETFAIR_PASSWORD,
+# and BETFAIR_CERT + BETFAIR_KEY only if two-step login is on.
+# Betfair refuses logins from the US, where most GitHub-hosted runners are. If the run fails with
+# BETTING_RESTRICTED_LOCATION, register a self-hosted runner on a UK machine and set the repository
+# variable BETFAIR_RUNNER to its label (Settings > Secrets and variables > Actions > Variables).
+name: Betfair prices
+
+on:
+  schedule:
+    - cron: "7,37 10-21 * * *"   # UTC: 11:07-22:37 UK in summer, 10:07-21:37 in winter
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: betfair-log   # only this workflow writes data/exchange/, so it doesn't queue behind cards-db runs
+  cancel-in-progress: false
+
+jobs:
+  log:
+    runs-on: ${{ vars.BETFAIR_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -q -r requirements.txt   # no browser needed
+
+      - name: Log card prices
+        env:
+          BETFAIR_APP_KEY: ${{ secrets.BETFAIR_APP_KEY }}
+          BETFAIR_USERNAME: ${{ secrets.BETFAIR_USERNAME }}
+          BETFAIR_PASSWORD: ${{ secrets.BETFAIR_PASSWORD }}
+          BETFAIR_CERT: ${{ secrets.BETFAIR_CERT }}
+          BETFAIR_KEY: ${{ secrets.BETFAIR_KEY }}
+        run: python agent/betfair.py log --db cards.db --hours 36
+
+      - name: Commit and push the log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/exchange/   # only this folder: cards.db changes here (team aliases) are discarded below
+          git diff --cached --quiet && exit 0
+          git commit -q -m "Betfair prices $(date -u +%Y-%m-%dT%H:%MZ)"
+          git checkout -- . && git clean -fdq
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; git rebase --abort 2>/dev/null || true; sleep 5; done
+          exit 1
