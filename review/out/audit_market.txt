@@ -1,0 +1,76 @@
+
+=== 5a. What there is to benchmark against ===
+  Sky Bet price rows captured before kickoff: 415; distinct match/market/line: 399; settled and priced by the model: 399 lines on 48 matches
+  model probability from the pre-kickoff log: 394; reconstructed: 5
+  outcomes taken from ESPN where it differs from football-data: 20 matches in the ESPN file
+  closing odds stored on any bet: 0 (no closing-line value can be computed; the Betfair logger that would supply it is not merged)
+  bookmaker margin, total lines with both prices: mean 8.9% (n=109)
+  bookmaker margin, home lines with both prices: mean 9.0% (n=27)
+  bookmaker margin, away lines with both prices: mean 8.9% (n=84)
+
+=== 5b. Model against de-vigged Sky Bet, same lines, settled matches ===
+  all lines the market puts between 10% and 90%: 194 lines, 29 matches
+     log-loss  model -0.5943   market -0.5839 (power de-vig -0.6209)   model minus market -0.0104 (95% CI -0.0657 to +0.0337; above 0 = model better)
+     Brier     model 0.2006   market 0.1974   mean prob: model 0.481, market 0.468, observed 0.582
+     best blend weight on the model: 0.00 (95% CI 0.00 to 1.00; 0 = market alone, 1 = model alone)
+  match totals: 94 lines, 16 matches
+     log-loss  model -0.6457   market -0.6218 (power de-vig -0.6669)   model minus market -0.0239 (95% CI -0.1145 to +0.0480; above 0 = model better)
+     Brier     model 0.2192   market 0.2122   mean prob: model 0.476, market 0.472, observed 0.660
+     best blend weight on the model: 0.00 (95% CI 0.00 to 1.00; 0 = market alone, 1 = model alone)
+  team lines: 100 lines, 20 matches
+     log-loss  model -0.5461   market -0.5483 (power de-vig -0.5776)   model minus market +0.0022 (95% CI -0.0268 to +0.0356; above 0 = model better)
+     Brier     model 0.1831   market 0.1835   mean prob: model 0.485, market 0.463, observed 0.510
+     best blend weight on the model: 0.65 (95% CI 0.00 to 1.00; 0 = market alone, 1 = model alone)
+  only prices with a logged pre-kickoff projection: 194 lines, 29 matches
+     log-loss  model -0.5943   market -0.5839 (power de-vig -0.6209)   model minus market -0.0104 (95% CI -0.0668 to +0.0338; above 0 = model better)
+     Brier     model 0.2006   market 0.1974   mean prob: model 0.481, market 0.468, observed 0.582
+     best blend weight on the model: 0.00 (95% CI 0.00 to 1.00; 0 = market alone, 1 = model alone)
+  one line per match and market (nearest to 50%): 39 lines, 29 matches
+     log-loss  model -0.6700   market -0.6519 (power de-vig -0.6487)   model minus market -0.0181 (95% CI -0.0715 to +0.0309; above 0 = model better)
+     Brier     model 0.2392   market 0.2303   mean prob: model 0.498, market 0.478, observed 0.590
+     best blend weight on the model: 0.00 (95% CI 0.00 to 1.00; 0 = market alone, 1 = model alone)
+
+=== 5b-ii. Were overs simply underpriced in these matches? One line per match (its total, else a team line) ===
+  29 matches: overs landed in 17; Sky Bet's de-vigged prices expected 13.9, the model 14.2
+  chance of 17+ if Sky Bet's prices were right: 15.99%; if the model's were: 19.35%
+  by league (matches, overs landed, market expected, model expected): EPL 13, 8, 6.0, 6.6; LALIGA 13, 8, 6.5, 6.2; SERIEA 3, 1, 1.4, 1.3
+
+=== 5c. Price moves (the only stand-in for closing-line value in the repo) ===
+  lines captured more than once with a changed over price: 3
+    Nott'm Forest v Arsenal home over 1.5: 1.60 -> 1.67; model value at the first price +13%
+    Liverpool v Arsenal total over 4.5: 2.30 -> 2.20; model value at the first price +12%
+    Man United v Aston Villa total over 5.5: 2.80 -> 2.70; model value at the first price +15%
+  moved toward the model's view in 2 of 3: far too few to test
+
+=== 6a. The real bets (value_bets with a stake) ===
+  15 bets, 13 won, staked £154.81, profit £+140.34, ROI +90.7%
+  mean return per bet +90.2%, bootstrap 95% CI +42.5% to +133.2%; average odds 2.14; max drawdown £20.00
+  if prices exactly fair (win chance = 1/odds): expected wins 7.4; chance of 13+ wins 0.26%; chance of this profit or more 0.05%
+  if prices carry Sky Bet's measured margin (8.9% over two sides): expected wins 6.8; chance of 13+ wins 0.10%; chance of this profit or more 0.01%
+  if the model's own probabilities are right: expected wins 8.0; chance of 13+ wins 0.61%; chance of this profit or more 0.11%
+
+=== 6b. The shortlist rules applied mechanically to every logged Sky Bet price ===
+  overs by the full rule set (agent/check_prices.py): 7 bets on 7 matches, 5 won, ROI +41.1% (95% CI -26.1% to +103.6%), max drawdown 1.0 units, mean model edge +14.0%; chance of this or better if Sky Bet's de-vigged prices are right 11.4%
+  every over showing +8% or more (no cautions): 69 bets on 18 matches, 18 won, ROI -3.0% (95% CI -67.4% to +65.7%), max drawdown 20.1 units, mean model edge +24.6%; several lines a match, so not independent: read the interval, which resamples whole matches
+  every under showing +5% or more: 18 bets on 7 matches, 3 won, ROI -60.0% (95% CI -100.0% to +21.7%), max drawdown 10.8 units, mean model edge +28.4%; several lines a match, so not independent: read the interval, which resamples whole matches
+  the main over line of each match, model ignored (one per match, nearest 50%): 29 bets on 29 matches, 17 won, ROI +10.8% (95% CI -25.2% to +45.5%), max drawdown 3.3 units, mean model edge -4.4%; chance of this or better if Sky Bet's de-vigged prices are right 15.2%
+  every over offered (what the margin alone costs): 187 bets on 48 matches, 100 won, ROI +24.5% (95% CI -12.8% to +62.1%), max drawdown 14.4 units, mean model edge -3.8%; several lines a match, so not independent: read the interval, which resamples whole matches
+  Odds are the ones on screen when the price was captured, so they were available; stake limits, account
+  restrictions and whether a price was still there minutes later cannot be verified from the repo.
+  Matches were chosen for screenshots because the model liked them, so this is not a random sample.
+
+=== 7. Staking: flat against Kelly, on the mechanical rule bets in time order (bank = 100 units) ===
+  flat 2% of the starting bank: final bank 105.8, max drawdown 1.9%, largest stake 2.0%
+  full Kelly on the model's probability: final bank 129.8, max drawdown 27.1%, largest stake 33.2% of bank
+  half Kelly: final bank 116.8, max drawdown 13.5%, largest stake 16.6% of bank
+  quarter Kelly: final bank 108.7, max drawdown 6.8%, largest stake 8.3% of bank
+  half Kelly on a 50/50 blend of model and market: final bank 102.8, max drawdown 3.7%, largest stake 5.2% of bank
+  expected growth per bet (%, log scale) if the truth sits between market and model:
+     share of the model's edge that is real:    0%     25%     50%    100%
+     flat 2% of the starting bank                      -0.18   -0.07   +0.04   +0.26
+     full Kelly on the model's probability             -2.84   -1.78   -0.72   +1.39
+     half Kelly                                        -1.02   -0.51   +0.00   +1.03
+     quarter Kelly                                     -0.42   -0.17   +0.09   +0.59
+     half Kelly on a 50/50 blend of model and market   -0.18   -0.05   +0.07   +0.32
+
+  Kelly fractions the model implied on the real bets: 4%, 9%, 0%, 0%, 0%, 18%, 8%, 7%, 17%, 27%, 18%, 12%, 6%, 11%, 19%
