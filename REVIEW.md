@@ -209,7 +209,7 @@ a blend with the market, lose little if the edge is absent and still grow if it 
 
 Each one states its pass mark before it is run. None has been started.
 
-**A. Blend with the market (most likely to help).**
+**A. Blend with the market (most likely to help).** *Started 10 November 2026: `review/EXPERIMENT_A.md`.*
 - *What:* value is computed on `w × model + (1 − w) × de-vigged Sky Bet` (on the logit scale), with `w`
   fixed in advance at 0.5, then re-estimated once 150 priced matches exist.
 - *Why:* today's best estimate of `w` is 0, with an interval of 0 to 1. The market carries information the

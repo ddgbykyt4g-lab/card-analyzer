@@ -12,9 +12,15 @@ Rules (the overs bar and the cautions in SATURDAY.md step 5):
   a heavy underdog (under 20% to win) gets 2+ at most;
   only the shortest line that clears the bar is the bet: the longer ones are the same view with more variance;
   unders are shown but not recommended while the model projects too few cards (agent/POST_FREEZE.md).
+
+Experiment A (review/EXPERIMENT_A.md) adds a second verdict beside that one, without changing it. The model's
+probability is blended half-and-half (on the logit scale) with the bookmaker's own de-vigged probability, and
+the blend rule backs the shortest over whose blended value is +2% or more. Both verdicts are printed; which to
+follow with real money is the user's choice.
 Usage: python agent/check_prices.py --db cards.db data/prices/2026-11.txt [--book "Sky Bet"] [--all]
 """
 import argparse
+import math
 import os
 import sqlite3
 import sys
@@ -34,17 +40,55 @@ TAIL_P = 0.40          # an over the model rates below this is a tail bet
 LONG_TEAM_LINE = 2.5   # "3 or more" and longer
 BIG_EDGE = 0.20
 UNDERDOG_P = 0.20
+# Experiment A, fixed in advance (review/EXPERIMENT_A.md): don't tune these on the results they are judged by
+BLEND_W = 0.5       # weight on the model, logit scale; the rest is the bookmaker's de-vigged probability
+BLEND_EV = 0.02     # blended value needed: break-even if a third of the model's disagreement is real
+OVERROUND = 1.089   # Sky Bet's two-sided card lines (220 lines to Nov 2026); assumed when only the over is quoted
+
+
+def market_prob(over: float | None, under: float | None) -> tuple[float | None, bool]:
+    """(the bookmaker's over probability with its margin removed, whether the margin had to be assumed).
+    Proportional de-vig: 1/over divided by 1/over + 1/under. With no under price the sum is taken as OVERROUND."""
+    if not over:
+        return None, False
+    if under:
+        return (1 / over) / (1 / over + 1 / under), False
+    return min((1 / over) / OVERROUND, 0.999), True
+
+
+def blend(p_model: float, p_market: float, w: float = BLEND_W) -> float:
+    logit = lambda p: math.log(min(max(p, 1e-6), 1 - 1e-6) / (1 - min(max(p, 1e-6), 1 - 1e-6)))
+    return 1 / (1 + math.exp(-(w * logit(p_model) + (1 - w) * logit(p_market))))
 
 
 def verdicts(rows: list[dict], team_line: bool = False, underdog: bool = False) -> list[dict]:
     """rows: dicts of line, p_over, p_push, over (decimal odds or None), under (or None), any order.
-    Adds value_over, value_under, min_over and verdict to each; returns them sorted by line."""
-    out, bet_found = [], False
+    Adds value_over, value_under, min_over and verdict to each, and for experiment A market, blend,
+    value_blend and blend_verdict; returns them sorted by line."""
+    out, bet_found, blend_found = [], False, False
     for r in sorted(rows, key=lambda r: r["line"]):
         p, push = r["p_over"], r["p_push"]
+        mkt, assumed = market_prob(r.get("over"), r.get("under")) if push == 0 else (None, False)
+        mix = blend(p, mkt) if mkt is not None else None
         r = dict(r, min_over=(1 + OVER_EV - push) / p if p > 1e-9 else None,
                  value_over=p * r["over"] + push - 1 if r.get("over") else None,
-                 value_under=(1 - p - push) * r["under"] + push - 1 if r.get("under") else None)
+                 value_under=(1 - p - push) * r["under"] + push - 1 if r.get("under") else None,
+                 market=mkt, margin_assumed=assumed, blend=mix,
+                 value_blend=mix * r["over"] - 1 if mix is not None else None)
+        vb = r["value_blend"]
+        if vb is None:
+            blend_verdict = "-"
+        elif vb < BLEND_EV:
+            blend_verdict = "no"
+        elif p < TAIL_P:
+            blend_verdict = "pass: tail"
+        elif team_line and underdog and r["line"] >= LONG_TEAM_LINE:
+            blend_verdict = "pass: underdog"
+        elif blend_found:
+            blend_verdict = "longer line"
+        else:
+            blend_verdict, blend_found = "BET", True
+        r["blend_verdict"] = blend_verdict
         v = r["value_over"]
         if v is None:
             verdict = "no over price"
@@ -96,14 +140,20 @@ def render(fx: sqlite3.Row, block: dict, priced: dict) -> str:
             f"projected {priced['projected']:.2f} · {ref}")
     if priced["p_win"] is not None and priced["p_win"] < UNDERDOG_P:
         head += f" · heavy underdog ({priced['p_win']:.0%} to win)"
-    out = [head, f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6}  verdict"]
+    out = [head, f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6} | {'Sky':>5} {'blend':>6} {'value':>6}  verdict (current rule) / blend rule"]
     for r in priced["rows"]:
         over = f"{r['over']:.2f}" if r["over"] else "-"
         value = f"{r['value_over']:+.0%}" if r["value_over"] is not None else "-"
         needs = f"{r['min_over']:.2f}" if r["min_over"] else "-"
-        out.append(f"  {r['line']:>5g} {over:>6} {r['p_over']:>6.0%} {value:>6} {needs:>6}  {r['verdict']}")
-    bets = [r for r in priced["rows"] if r["verdict"].startswith("BET")]
-    out.append(f"  => {'over ' + format(bets[0]['line'], 'g') + ' at ' + format(bets[0]['over'], '.2f') if bets else 'no bet'}")
+        sky = "-" if r["market"] is None else f"{r['market']:.0%}{'*' if r['margin_assumed'] else ''}"
+        mix = "-" if r["blend"] is None else f"{r['blend']:.0%}"
+        vb = "-" if r["value_blend"] is None else f"{r['value_blend']:+.0%}"
+        out.append(f"  {r['line']:>5g} {over:>6} {r['p_over']:>6.0%} {value:>6} {needs:>6} | {sky:>5} {mix:>6} {vb:>6}  "
+                   f"{r['verdict']} / {r['blend_verdict']}")
+    pick = lambda key: next((f"over {r['line']:g} at {r['over']:.2f}" for r in priced["rows"] if r[key].startswith("BET")), "no bet")
+    out.append(f"  => current rule: {pick('verdict')}   |   blend rule (experiment A): {pick('blend_verdict')}")
+    if any(r["margin_assumed"] for r in priced["rows"]):
+        out.append(f"  * no under price: Sky Bet's margin assumed at {OVERROUND - 1:.1%}")
     return "\n".join(out)
 
 
