@@ -75,7 +75,8 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   with `agent/backfill_referees.py` (CSV kept on the `referee-backfill` branch); out-of-sample it improved
   every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`; with fouls, `glm-v4`.
   `glm-v4.1` (from 2026-11-10) is the same model on corrected card data: two-yellow dismissals had been stored
-  2 cards too high outside England (and in England from 2026-27), about 6% of matches.
+  2 cards too high outside England (and in England from 2026-27), about 6% of matches. Existing rows are only
+  corrected by a one-off `collect_cards.py --history 5 --resplit`; the normal collector keeps rows it has split.
 
 ## Tests
 - `python -m pytest -q tests` (bet parsing, odds/push maths, settlement, void rules, the two card sources,

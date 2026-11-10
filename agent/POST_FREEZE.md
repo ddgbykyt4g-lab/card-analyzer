@@ -25,10 +25,13 @@ CLAUDE.md.
 - **Card data fix (10 Nov, glm-v4.1):** two-yellow dismissals were stored 2 cards too high in La Liga, Serie A,
   Bundesliga and Ligue 1 (every season) and in the EPL from 2026-27: football-data's yellow count already
   holds both yellows there, and the collector added one back. 582 team rows, about 6% of matches; three-season
-  averages fall 0.11-0.15 a match in the four continental leagues. A data bug fix, not a model change, but the
-  walk-forward backtest (2024-27) improves from RMSE 2.202 to 2.054 and log-loss -2.162 to -2.111, because the
-  wrong rows were noise. Rows logged before the fix carry `glm-v4`, after it `glm-v4.1`; both are scored
-  against the corrected counts.
+  averages fall 0.11-0.15 a match in the four continental leagues. A data bug fix, not a model change.
+  Walk-forward backtest (2024-27), both fits scored against the corrected outcomes: RMSE 2.062 -> 2.054,
+  log-loss -2.1153 -> -2.1109, a small real gain. (Scored against their own data the figures are 2.202 -> 2.054,
+  but most of that drop is the outcomes losing their +2 outliers, not a better model; don't quote it as a gain.)
+  The `glm-v4.1` label is only true once `collect_cards.py --resplit` has run on main: the normal collector
+  keeps rows it has already split, so merging the code alone fixes nothing in `cards.db`. Rows logged before
+  the resplit carry `glm-v4`, after it `glm-v4.1`; both are scored against the corrected counts.
 - **Live log by league (to 9 Nov, 283 scored matches, corrected counts):** 4.19 cards against 3.99 projected,
   but not evenly: La Liga +0.62 a match (50 matches), EPL +0.51 (50), SPL +0.26, Bundesliga and Ligue 1 +0.12,
   Serie A -0.29 (60). Those projections were fitted on the inflated continental data, so from glm-v4.1 the

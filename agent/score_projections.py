@@ -15,8 +15,8 @@ import sys
 from collections import defaultdict
 
 LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
-# glm-v4.1 walk-forward backtest, untuned seasons 2024-27, all leagues, Sky Bet card count
-# (glm-v4, before two-yellow dismissals were counted once: -2.162 and 2.202)
+# glm-v4.1 walk-forward backtest, untuned seasons 2024-27, all leagues, Sky Bet card count, scored on the
+# corrected card data (two-yellow dismissals counted once). glm-v4 scored on the same outcomes: -2.115 and 2.062
 BACKTEST = {"log-loss": -2.111, "rmse": 2.054}
 LEVELS = (3.5, 4.0, 4.5, 5.0)  # edges of the projected-cards bands
 BANDS = [f"under {LEVELS[0]:g}"] + [f"{a:g}-{b:g}" for a, b in zip(LEVELS, LEVELS[1:])] + [f"{LEVELS[-1]:g}+"]
