@@ -9,6 +9,8 @@ Plan, fixed parameters and pass marks: review/EXPERIMENT_A.md. Read-only on card
          bookmaker (margin removed) and the 50/50 blend, the blend's margin over the bookmaker with an interval
          that resamples whole matches, closing-line value where closing prices exist, and both betting rules
          as paper bets. Ends with where the experiment stands against its pass marks.
+  remind Screenshots due in the next 48 hours (benchmark matches without a price, closing prices for your bets);
+         prints nothing when none are due. The daily and Saturday runs send it as a phone alert.
 Usage: python review/experiment_a.py pick  [--db cards.db]
        python review/experiment_a.py score [--db cards.db] [--since 2026-11-10]
 """
@@ -21,6 +23,7 @@ import sqlite3
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
@@ -32,6 +35,7 @@ START = "2026-11-10"   # prices captured from this day on count; everything earl
 ONE_IN = 4             # a fixture is a benchmark match if its hash falls in one bucket of this many
 NEED, GIVE_UP = 150, 300   # priced benchmark matches: first verdict, and where "no usable edge" is concluded
 ISO = "%Y-%m-%dT%H:%M:%SZ"
+UK = ZoneInfo("Europe/London")
 SIDE = {"TOTAL_CARDS": "total", "HOME_CARDS": "home", "AWAY_CARDS": "away"}
 
 
@@ -93,6 +97,50 @@ def sky_clv(con: sqlite3.Connection, since: str) -> list[dict]:
         p = p_over if sel == "over" else 1 - p_over
         out.append(dict(bet_id=bet_id, clv=odds * p - 1, assumed=assumed, captured_at=close[2]))
     return out
+
+
+# ───────────────────────────── reminders (phone alert from the daily and Saturday runs) ─────────────────────────────
+def reminders(con: sqlite3.Connection, now: datetime, hours: float = 48) -> list[str]:
+    """What needs a screenshot in the next `hours`: benchmark matches with no two-sided Sky Bet total-cards price
+    logged yet, and the user's pending bets, each needing Sky Bet's price in the CLOSE_MIN minutes before kickoff.
+    Empty when nothing is due, so the alert is only sent when there is something to do."""
+    lo, hi = now.strftime(ISO), (now + timedelta(hours=hours)).strftime(ISO)
+    uk = lambda iso: datetime.strptime(iso, ISO).replace(tzinfo=timezone.utc).astimezone(UK)
+    bench = [f"  {uk(ko):%a %H:%M} {home} v {away} ({league})" for ext, ko, league, home, away in con.execute(
+        """SELECT m.external_id, m.kickoff_utc, l.code, h.name, a.name
+           FROM matches m JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
+           JOIN teams h ON h.team_id = m.home_team_id JOIN teams a ON a.team_id = m.away_team_id
+           WHERE m.status = 'scheduled' AND m.kickoff_utc > ? AND m.kickoff_utc <= ?
+             AND NOT EXISTS (SELECT 1 FROM odds_snapshots o JOIN bookmakers b USING (bookmaker_id)
+                             JOIN markets mk USING (market_id)
+                             WHERE o.match_id = m.match_id AND b.name = 'Sky Bet' AND mk.code = 'TOTAL_CARDS'
+                               AND o.over_odds IS NOT NULL AND o.under_odds IS NOT NULL)
+           ORDER BY m.kickoff_utc""", (lo, hi)) if is_benchmark(ext)]
+    bets = []
+    for ko, home, away, code, sel, line in con.execute(
+            """SELECT m.kickoff_utc, h.name, a.name, mk.code, vb.selection, o.line
+               FROM value_bets vb JOIN odds_snapshots o USING (snapshot_id) JOIN markets mk ON mk.market_id = o.market_id
+               JOIN matches m ON m.match_id = o.match_id
+               JOIN teams h ON h.team_id = m.home_team_id JOIN teams a ON a.team_id = m.away_team_id
+               WHERE vb.stake > 0 AND vb.result = 'pending' AND m.status = 'scheduled'
+                 AND m.kickoff_utc > ? AND m.kickoff_utc <= ? ORDER BY m.kickoff_utc""", (lo, hi)):
+        if code == "EACH_TEAM_CARDS":
+            continue  # no screen to log for each-team prices
+        what = {"HOME_CARDS": f"{home} cards", "AWAY_CARDS": f"{away} cards"}.get(code, "match total")
+        k = uk(ko)
+        bets.append(f"  {home} v {away}: {what} {sel} {line:g}, screenshot between "
+                    f"{k - timedelta(minutes=CLOSE_MIN):%a %H:%M} and {k:%H:%M}")
+    out = []
+    if bench:
+        out += ["Experiment A benchmark matches: screenshot Sky Bet's Total cards over/under tab (both columns):"] + bench
+    if bets:
+        out += [f"Your bets: screenshot the same line in the {CLOSE_MIN} minutes before kickoff (closing price):"] + bets
+    return out
+
+
+def cmd_remind(args) -> int:
+    print("\n".join(reminders(connect(args.db), datetime.now(timezone.utc), args.hours)))
+    return 0
 
 
 # ───────────────────────────── scoring ─────────────────────────────
@@ -253,13 +301,14 @@ def cmd_score(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["pick", "score"])
+    ap.add_argument("command", choices=["pick", "score", "remind"])
     ap.add_argument("--db", default=os.path.join(ROOT, "cards.db"))
     ap.add_argument("--since", default=START)
     ap.add_argument("--log", default=os.path.join(ROOT, "data", "projections.csv"))
     ap.add_argument("--espn", default=os.path.join(ROOT, "data", "espn_cards.csv"))
+    ap.add_argument("--hours", type=float, default=48, help="remind: how far ahead to look")
     args = ap.parse_args()
-    return cmd_pick(args) if args.command == "pick" else cmd_score(args)
+    return dict(pick=cmd_pick, score=cmd_score, remind=cmd_remind)[args.command](args)
 
 
 if __name__ == "__main__":

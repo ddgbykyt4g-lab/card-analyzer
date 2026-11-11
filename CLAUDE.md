@@ -140,6 +140,9 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   lists the week's benchmark matches (about a quarter of fixtures, fixed by a hash of the ESPN id, chosen
   without the model); `... score` reports blend against Sky Bet. Don't change `BLEND_W`, `BLEND_EV`, the
   start date or the benchmark rule while it runs: a change is a new experiment.
+  `... remind` lists screenshots due in the next 48 hours (benchmark matches with no two-sided Sky Bet total price,
+  closing screenshots for pending bets); the daily run sends it as a "Screenshots needed" alert when non-empty, the
+  Saturday alert appends it, and each "Bet logged" alert reminds about the closing screenshot.
   Amended 11 Nov 2026, before any benchmark match was scored: closing-line value is measured against Sky Bet's
   own closing price (a screenshot of the bet's line in the 30 minutes before kickoff, `sky_clv`), not Betfair's;
   the Betfair logger (PR #1) is shelved until an edge is shown.

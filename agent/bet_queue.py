@@ -73,7 +73,8 @@ def notify(out: Path, status: str) -> None:
             title, body = "Bet NOT logged yet", (f"{r['bet']}\nThe run failed before saving. The bet is still "
                                                  "queued: open the run in the Actions tab and choose Re-run failed jobs.")
         elif r["ok"]:
-            title, body = "Bet logged", r["output"]
+            title, body = "Bet logged", r["output"] + ("\nClosing price: screenshot this line on Sky Bet in the 30 minutes "
+                                                     "before kickoff (experiment A).")
         else:
             title, body = "Bet NOT logged", f"{r['output'].splitlines()[-1] if r['output'] else r['bet']}\n" \
                                             "Check the wording and send it again."
