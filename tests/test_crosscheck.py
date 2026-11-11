@@ -180,3 +180,46 @@ def test_health_reports_a_disputed_bet_and_a_league_whose_sources_disagree(match
     assert any(p.startswith(f"EPL: football-data and ESPN count different cards in {SOURCE_GAP} matches")
                for p in problems(path, None, now, cards))
     assert problems(path, None, now) == problems(path, None, now, {})  # no ESPN file: the old checks only
+
+
+# ── ESPN's count stored where football-data's differs (football-data's 7 Nov 2026 rows slid one match) ──
+def stored(con):
+    return con.execute("""SELECT is_home, yellows, second_yellows, straight_reds, reds_1h FROM match_team_cards
+                          WHERE match_id = 1 ORDER BY is_home DESC""").fetchall()
+
+
+def test_espn_count_replaces_football_data_where_they_differ(match, tmp_path):
+    from collect_cards import apply_espn_counts
+    finish(match, home=(1, 0, 0), away=(2, 0, 0))                        # Leeds v Tottenham as football-data had it
+    match.execute("UPDATE match_team_cards SET reds_1h = 0")
+    match.commit()
+    db = DB(str(tmp_path / "t.db"), None)
+    assert apply_espn_counts(db, espn(home=(2, 0, 0), away=(3, 0, 0))) == ["Arsenal v Leeds"]
+    assert stored(db.con) == [(1, 2, 0, 0, 0), (0, 3, 0, 0, 0)]
+    assert apply_espn_counts(db, espn(home=(2, 0, 0), away=(3, 0, 0))) == []   # nothing left to change
+
+
+def test_espn_reds_reset_the_split_for_split_reds(match, tmp_path):
+    from collect_cards import apply_espn_counts
+    finish(match, home=(4, 0, 1), away=(2, 0, 0))                        # Roma's row carried Parma's red
+    db = DB(str(tmp_path / "t.db"), None)
+    apply_espn_counts(db, espn(home=(0, 0, 0), away=(3, 1, 0)))
+    assert stored(db.con) == [(1, 0, 0, 0, None), (0, 3, 0, 1, None)]   # split_reds then checks the away red
+
+
+def test_two_yellow_convention_is_not_a_disagreement(match, tmp_path):
+    from collect_cards import apply_espn_counts
+    finish(match, home=(6, 0, 1), away=(2, 0, 0))   # football-data counts both yellows of the dismissed player
+    db = DB(str(tmp_path / "t.db"), None)
+    assert apply_espn_counts(db, espn(home=(5, 1, 0), away=(2, 0, 0))) == []
+
+
+def test_match_with_a_pending_staked_bet_keeps_both_sources(match, tmp_path):
+    from collect_cards import apply_espn_counts
+    bet = add_bet(match, "TOTAL_CARDS", "over", 4.5, 2.0)
+    finish(match, home=(1, 0, 0), away=(2, 0, 0))
+    db = DB(str(tmp_path / "t.db"), None)
+    two_sources = espn(home=(2, 0, 0), away=(3, 0, 0))
+    assert apply_espn_counts(db, two_sources) == []                       # settle.py lists it as CHECK instead
+    confirm(db.con, bet, "won", two_sources)
+    assert apply_espn_counts(db, two_sources) == ["Arsenal v Leeds"]       # once confirmed, corrected
