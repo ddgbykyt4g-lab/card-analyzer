@@ -4,7 +4,7 @@ Fixes, before any result exists, how each candidate in `agent/POST_FREEZE.md` wi
 as a pass. It is locked when merged. Changing a pass mark, season split or parameter grid after seeing a
 result means writing a new plan with a new date; the old result then doesn't count.
 
-**Status:** draft for your approval. Nothing here changes projections, prices or code. Per `CLAUDE.md`,
+**Status:** decisions made 11 November 2026 (section 8); locked once reviewed and merged. Nothing here changes projections, prices or code. Per `CLAUDE.md`,
 every change that alters model results needs your explicit go-ahead; this plan only says how each would be
 judged.
 
@@ -109,12 +109,13 @@ which carry the new model label and are scored separately by version. No re-scor
 - **Estimated effort:** the runner is a few hours of work; each candidate is a half day. Compute is small
   (a walk-forward takes about two minutes).
 
-## 8. Decisions for you before this is locked
+## 8. Decisions (made 11 November 2026)
 
-1. **Is 0.004 the right bar?** It is about 1.7 times the measured half-width, and about as large as the
-   gain from the foul-feature change that was kept earlier (+0.0022 total, +0.0030 team-level). A lower bar
-   admits changes the data can't distinguish from noise; a higher one will reject small real gains.
-2. **Screened-in changes in the log only until the confirmation read (section 5).** The alternative is to
-   price from them straight away, at the cost of the protection above.
-3. **Candidate 7 (players) is out of this round.** Say if you want a data source scoped.
-4. **Candidate 6's derby list.** I'd draft it and you approve it before any counting.
+1. **Pass bar: 0.004** log-loss per match, with the 99% interval above zero (section 3, rule 4). About 1.7 times
+   the measured half-width; small real gains below it are "unproven", not kept.
+2. **Rollout: log only until confirmed.** A screened-in change runs beside the live model in the projection log,
+   under its own label, and does not set betting prices until you approve the confirmation read (section 5).
+3. **Candidate 7 (players) stays out of this round,** as drafted: it needs a new data source.
+4. **Candidate 6's derby list:** drafted and approved by you before any matches are counted, as drafted.
+
+Remaining before the plan is locked: the one-off review by a different, stronger model (section 7), then merge.
