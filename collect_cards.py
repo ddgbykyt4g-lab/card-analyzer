@@ -188,9 +188,16 @@ class TeamResolver:
         tid = self.by_norm.get(key)
         if tid is None:  # token-subset match, must be unique ("Newcastle" ~ "Newcastle Utd")
             toks = set(key.split())
-            subset = {t for k, t in self.by_norm.items()
+            subset = {(k, t) for k, t in self.by_norm.items()
                       if toks and (toks <= set(k.split()) or set(k.split()) <= toks)}
-            tid = subset.pop() if len(subset) == 1 else None
+            tid = None
+            if len({t for _, t in subset}) == 1:
+                k, tid = subset.pop()
+                # the words that matched must not fit another team just as well: "Paris Saint-Germain" ~ "Paris FC"
+                # rests on "paris" alone, which Paris SG has too ("Le Havre AC" ~ "Le Havre": Le Mans has "le" only)
+                shared = toks & set(k.split())
+                if any(t != tid and shared <= set(k2.split()) for k2, t in self.by_norm.items()):
+                    tid = None
         if tid is None:
             close = difflib.get_close_matches(key, list(self.by_norm), n=2, cutoff=0.85)
             tid = self.by_norm[close[0]] if len(close) == 1 else None
