@@ -53,6 +53,10 @@ experiment, with a new start date, after the first verdict.
 The experiment needs prices, not bets. Which rule to stake on is the user's decision; `check_prices.py`
 shows the current rule and the blend rule side by side.
 
+**Decided 11 November 2026:** real money follows the **current rule** (model value +8%), at **£10 flat** per
+bet. The blend rule's picks are scored as paper bets (`experiment_a.py score`, section 3), so the two rules are still
+compared; closing-line value (the pass mark) comes from the real bets, so it measures the current rule's picks.
+
 ## Amendment, 11 November 2026 (before any benchmark match was scored)
 
 The pass mark's closing-line value was to be measured against Betfair Exchange's closing price. The Betfair logger

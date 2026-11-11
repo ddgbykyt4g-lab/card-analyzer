@@ -123,6 +123,9 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   - research-prompt line: `"Home v Away | market | over 3.5 @ 2.15 | Sky Bet | model p | adjusted p | reason"`
   - past bets: add `--placed "YYYY-MM-DD HH:MM"` (UK time); also `--adjusted-p 0.45 --reason "..."`.
   Bets that `value_finder.py` logs itself stay paper bets with stake 0.
+- Real money (user's decision, 11 Nov 2026): £10 flat per bet, following the current-rule verdict of
+  `check_prices.py` (model value +8%); the blend rule is scored as paper bets for experiment A. Revisit if the
+  experiment passes or fails.
 - Sky Bet card markets (total, home, away, each team) settle with `settlement_rules` yellow 1, second
   yellow 1, straight red 1, no staff cards (two yellows = 2, yellow then straight red = 2). Pricing refits
   the GLM in the bookmaker's card units; `price_sheet.py` prices for Sky Bet by default (`--book NAME`).
