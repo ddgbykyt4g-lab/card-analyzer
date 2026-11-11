@@ -23,7 +23,10 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
      leagues; England from 2026-27). `two_yellow_split` picks whichever matches ESPN's yellow events, so
      stored yellows always include the first yellow once. `--resplit` (with `--history N`) redoes every split
    - Writes ESPN's player-card counts for matches finished in the last 14 days to `data/espn_cards.csv`
-     (keyed on ESPN's event id; staff cards counted apart). football-data stays the model's card source
+     (keyed on ESPN's event id; staff cards counted apart). football-data is the model's card source, but
+     where its count for a match in that file differs from ESPN's, ESPN's is stored (`apply_espn_counts`, every
+     run after football-data reloads): not for a difference its two-yellow counting explains, nor while a staked
+     bet on the match is pending (that stays a `CHECK` until confirmed)
    - Settles pending bets automatically at the end of every run, voiding bets on matches not played
      within 3 days of the original kickoff date (`python settle.py --db cards.db` to run it alone)
 2. Find value:
@@ -34,6 +37,8 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 ## Two card sources
 football-data and ESPN disagree on about 3% of team card counts, and either can be wrong (football-data had
 the wrong yellows for all four Premier League matches of 7 Nov 2026, which settled a winning bet as lost).
+On 7 Nov 2026 football-data's card columns slid one match down in 18 matches across five leagues (fouls were
+right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's count where the two differ.
 - `settle.py` checks every bet with a stake against `data/espn_cards.csv`: same result from both sources,
   it settles; different results, the bet stays pending and is listed as `CHECK` until the user says what the
   bookmaker paid (`python settle.py --db cards.db --confirm BET_ID won|lost|push|void`); only ESPN has the
