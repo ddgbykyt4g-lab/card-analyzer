@@ -152,6 +152,11 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
 - `odds_snapshots`, `bookmakers` and `markets` have no automatic collector; ask before adding an odds source.
   Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` and loaded with
   `python agent/log_prices.py --db cards.db data/prices/<file>` (UK times; re-running is harmless).
+  Other bookmakers' screenshots: name the bookmaker as a 4th header field (`@ <time> | Home v Away | total | bet365`;
+  without it, Sky Bet). Enter a bookmaker's card-counting rules once, from its own rules page, never from memory:
+  `python agent/add_book_rules.py --db cards.db "bet365" --yellow 1 --second-yellow 1 --red 2 [--staff]`.
+  `check_prices.py` prices each bookmaker under its own rules (none without rules) and lists the best value per line;
+  experiment A stays on Sky Bet's prices only.
 
 ## Reporting
 After a run, summarise flagged bets: fixture, referee, bookmaker, market, line, odds,

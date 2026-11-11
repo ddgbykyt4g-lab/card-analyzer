@@ -17,6 +17,9 @@ Experiment A (review/EXPERIMENT_A.md) adds a second verdict beside that one, wit
 probability is blended half-and-half (on the logit scale) with the bookmaker's own de-vigged probability, and
 the blend rule backs the shortest over whose blended value is +2% or more. Both verdicts are printed; which to
 follow with real money is the user's choice.
+Several bookmakers: a price block may name its bookmaker ("@ ... | total | bet365"; --book is the default). Each is
+priced under its own card-counting rules (agent/add_book_rules.py; a bookmaker without rules isn't priced), and where
+two or more quote the same line the best value is listed. Experiment A's blend columns are shown for Sky Bet only.
 Usage: python agent/check_prices.py --db cards.db data/prices/2026-11.txt [--book "Sky Bet"] [--all]
 """
 import argparse
@@ -25,6 +28,7 @@ import os
 import sqlite3
 import sys
 from datetime import datetime, timezone
+from itertools import groupby
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -136,25 +140,52 @@ def render(fx: sqlite3.Row, block: dict, priced: dict) -> str:
     team = {"total": "match total", "home": f"{fx['home']} cards", "away": f"{fx['away']} cards"}[block["market"]]
     ref = "no referee yet (league average used)" if fx["referee_id"] is None else \
         f"{fx['referee']} ({fx['ref_matches']} matches{', thin record' if fx['ref_matches'] < MIN_REF_MATCHES else ''})"
-    head = (f"{fx['home']} v {fx['away']} · {team} · prices at {block['when'].astimezone(UK):%a %H:%M} · "
+    sky = block.get("book", "Sky Bet").lower() == "sky bet"  # experiment A's blend is for Sky Bet's prices only
+    head = (f"{fx['home']} v {fx['away']} · {team} · {block.get('book', 'Sky Bet')} prices at "
+            f"{block['when'].astimezone(UK):%a %H:%M} · "
             f"projected {priced['projected']:.2f} · {ref}")
     if priced["p_win"] is not None and priced["p_win"] < UNDERDOG_P:
         head += f" · heavy underdog ({priced['p_win']:.0%} to win)"
-    out = [head, f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6} | {'Sky':>5} {'blend':>6} {'value':>6}  verdict (current rule) / blend rule"]
+    out = [head, f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6}"
+                 + (f" | {'Sky':>5} {'blend':>6} {'value':>6}  verdict (current rule) / blend rule" if sky else "  verdict")]
     for r in priced["rows"]:
         over = f"{r['over']:.2f}" if r["over"] else "-"
         value = f"{r['value_over']:+.0%}" if r["value_over"] is not None else "-"
         needs = f"{r['min_over']:.2f}" if r["min_over"] else "-"
-        sky = "-" if r["market"] is None else f"{r['market']:.0%}{'*' if r['margin_assumed'] else ''}"
+        mkt = "-" if r["market"] is None else f"{r['market']:.0%}{'*' if r['margin_assumed'] else ''}"
         mix = "-" if r["blend"] is None else f"{r['blend']:.0%}"
         vb = "-" if r["value_blend"] is None else f"{r['value_blend']:+.0%}"
-        out.append(f"  {r['line']:>5g} {over:>6} {r['p_over']:>6.0%} {value:>6} {needs:>6} | {sky:>5} {mix:>6} {vb:>6}  "
-                   f"{r['verdict']} / {r['blend_verdict']}")
+        row = f"  {r['line']:>5g} {over:>6} {r['p_over']:>6.0%} {value:>6} {needs:>6}"
+        out.append(row + (f" | {mkt:>5} {mix:>6} {vb:>6}  {r['verdict']} / {r['blend_verdict']}" if sky
+                          else f"  {r['verdict']}"))
     pick = lambda key: next((f"over {r['line']:g} at {r['over']:.2f}" for r in priced["rows"] if r[key].startswith("BET")), "no bet")
-    out.append(f"  => current rule: {pick('verdict')}   |   blend rule (experiment A): {pick('blend_verdict')}")
-    if any(r["margin_assumed"] for r in priced["rows"]):
+    out.append(f"  => current rule: {pick('verdict')}"
+               + (f"   |   blend rule (experiment A): {pick('blend_verdict')}" if sky else ""))
+    if sky and any(r["margin_assumed"] for r in priced["rows"]):
         out.append(f"  * no under price: Sky Bet's margin assumed at {OVERROUND - 1:.1%}")
     return "\n".join(out)
+
+
+def has_rules(con: sqlite3.Connection, book: str) -> bool:
+    return con.execute("""SELECT 1 FROM settlement_rules r JOIN bookmakers b USING (bookmaker_id)
+                          JOIN markets m USING (market_id) WHERE b.name = ? COLLATE NOCASE AND m.code = 'TOTAL_CARDS'""",
+                       (book,)).fetchone() is not None
+
+
+def best_lines(by_book: list[tuple[str, dict]]) -> list[str]:
+    """Where two or more bookmakers quote the same over, the best value first. Each book's value is worked out
+    under its own card-counting rules, so the best value isn't always the longest odds."""
+    quotes: dict[float, list[tuple[float, str, float]]] = {}
+    for book, priced in by_book:
+        for r in priced["rows"]:
+            if r["over"] and r["value_over"] is not None:
+                quotes.setdefault(r["line"], []).append((r["value_over"], book, r["over"]))
+    out = []
+    for line in sorted(quotes):
+        q = sorted(quotes[line], reverse=True)
+        if len({b for _, b, _ in q}) > 1:
+            out.append(f"  over {line:g}: " + " · ".join(f"{b} {o:.2f} ({v:+.0%})" for v, b, o in q))
+    return ["  Best value across bookmakers (each under its own card rules), best first:"] + out if out else []
 
 
 def main() -> int:
@@ -172,22 +203,35 @@ def main() -> int:
     projector = Projector(db.con, Config(ref_fallback_league_avg=True), now)
     latest: dict[tuple, dict] = {}
     for block in parse_file(open(args.file).read()):
+        block["book"] = block.get("book") or args.book
         try:
             fx = find_match(db, dict(home=block["home"], away=block["away"]), block["when"], args.days, block["when"])
         except SystemExit:
             continue  # a match the database doesn't have
         if fx["match_id"] in upcoming and fx["kickoff_utc"] > block["when"].strftime(ISO):
-            key = (fx["match_id"], block["market"]) + ((block["when"],) if args.all else ())
+            key = (fx["match_id"], block["market"], block["book"].lower()) + ((block["when"],) if args.all else ())
             if key not in latest or block["when"] >= latest[key]["when"]:
                 latest[key] = dict(block, fx=upcoming[fx["match_id"]])
     if not latest:
         print("No logged prices for matches that haven't kicked off.")
         return 0
-    for block in sorted(latest.values(), key=lambda b: (b["fx"]["kickoff_utc"], b["fx"]["match_id"], b["market"], b["when"])):
-        priced = price_block(db.con, projector, block["fx"], block, args.book)
-        print(render(block["fx"], block, priced) if priced else
-              f"{block['home']} v {block['away']}: the model can't price this market yet")
-        print()
+    order = sorted(latest.values(), key=lambda b: (b["fx"]["kickoff_utc"], b["fx"]["match_id"], b["market"],
+                                                   b["book"].lower() != "sky bet", b["book"].lower(), b["when"]))
+    for _, blocks in groupby(order, key=lambda b: (b["fx"]["match_id"], b["market"])):
+        by_book = {}
+        for block in blocks:
+            if not has_rules(db.con, block["book"]):
+                print(f"{block['home']} v {block['away']} · {block['book']}: no card-counting rules for this bookmaker "
+                      "yet, so not priced (add them once with agent/add_book_rules.py)\n")
+                continue
+            priced = price_block(db.con, projector, block["fx"], block, block["book"])
+            print(render(block["fx"], block, priced) if priced else
+                  f"{block['home']} v {block['away']}: the model can't price this market yet")
+            if priced:
+                by_book[block["book"]] = priced
+            print()
+        if best := best_lines(list(by_book.items())):
+            print("\n".join(best) + "\n")
     return 0
 
 
