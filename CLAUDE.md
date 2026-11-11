@@ -137,6 +137,9 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   lists the week's benchmark matches (about a quarter of fixtures, fixed by a hash of the ESPN id, chosen
   without the model); `... score` reports blend against Sky Bet. Don't change `BLEND_W`, `BLEND_EV`, the
   start date or the benchmark rule while it runs: a change is a new experiment.
+  Amended 11 Nov 2026, before any benchmark match was scored: closing-line value is measured against Sky Bet's
+  own closing price (a screenshot of the bet's line in the 30 minutes before kickoff, `sky_clv`), not Betfair's;
+  the Betfair logger (PR #1) is shelved until an edge is shown.
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.

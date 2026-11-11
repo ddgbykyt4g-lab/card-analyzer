@@ -92,6 +92,9 @@ Write `reports/<YYYY-MM-DD>.md` containing:
   `python review/experiment_a.py pick`, under its own heading, with one line asking the user to screenshot Sky
   Bet's Total cards over/under tab for each, whether or not it is on the shortlist. Put the list in the phone
   alert too. These are chosen without the model, so don't add, drop or reorder them.
+- **Closing screenshots (experiment A amendment of 11 Nov 2026):** for every bet the user places, remind them
+  to screenshot that line's Sky Bet screen in the 30 minutes before kickoff. It is the closing price the
+  experiment measures closing-line value against (`experiment_a.py` `sky_clv`).
 
 Then commit `cards.db` and the report and push:
 ```
