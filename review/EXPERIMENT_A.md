@@ -34,7 +34,7 @@ Run `python review/experiment_a.py score`. The test is the **benchmark matches**
 
 | Outcome | Condition |
 |---|---|
-| **Pass: a usable edge** | 150 or more benchmark matches priced and settled; blend log-loss better than Sky Bet's with the 95% interval (resampling whole matches) above zero; **and** mean closing-line value on real bets against Betfair is positive. |
+| **Pass: a usable edge** | 150 or more benchmark matches priced and settled; blend log-loss better than Sky Bet's with the 95% interval (resampling whole matches) above zero; **and** mean closing-line value on real bets against Sky Bet's closing price is positive (amendment below). |
 | **Keep collecting** | Fewer than 150 matches, or the interval still includes zero below 300 matches. |
 | **Stop: no usable edge at Sky Bet's margin** | 300 matches and the interval still includes zero. |
 
@@ -52,3 +52,18 @@ experiment, with a new start date, after the first verdict.
 
 The experiment needs prices, not bets. Which rule to stake on is the user's decision; `check_prices.py`
 shows the current rule and the blend rule side by side.
+
+## Amendment, 11 November 2026 (before any benchmark match was scored)
+
+The pass mark's closing-line value was to be measured against Betfair Exchange's closing price. The Betfair logger
+(PR #1) is shelved: its running cost isn't justified before an edge is shown. Closing-line value is now measured
+against **Sky Bet's own closing price**: the latest Sky Bet screenshot of the bet's match, market and line captured
+in the **30 minutes before kickoff**, margin removed the same way (`market_prob`; with no under price, the 8.9%
+margin is assumed). CLV = odds taken ÷ fair closing odds − 1. `review/experiment_a.py` `sky_clv`, `CLOSE_MIN`.
+
+What changes in practice: for each real bet, screenshot that line's Sky Bet screen in the half hour before kickoff
+(the Total cards over/under tab, or the team's tab), and send it like any other price.
+
+Weaker than the Betfair test, stated up front: Sky Bet's closing price is a bookmaker's price, not a market's, and
+it moves less, so a positive CLV against it is less convincing than one against the exchange would have been. No
+other parameter changes; this amendment was written when the scorer had 0 benchmark matches.

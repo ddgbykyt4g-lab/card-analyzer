@@ -63,6 +63,38 @@ def cmd_pick(args) -> int:
     return 0
 
 
+# ───────────────────────────── closing-line value against Sky Bet (amendment of 11 Nov 2026) ─────────────────────────────
+CLOSE_MIN = 30  # a Sky Bet price captured this many minutes or fewer before kickoff is the closing price
+
+
+def sky_clv(con: sqlite3.Connection, since: str) -> list[dict]:
+    """Closing-line value of each real bet against Sky Bet's own closing price: the latest Sky Bet screenshot of
+    the same match, market and line captured in the CLOSE_MIN minutes before kickoff, margin removed the way
+    experiment A removes it (market_prob). CLV = odds taken / fair closing odds - 1. A bet's own snapshot
+    (logged when it was placed) doesn't count as its close. Half lines only; each-team bets have no screen to log."""
+    out = []
+    for bet_id, sel, odds, snap, mid, market, line, ko in con.execute("""
+            SELECT vb.bet_id, vb.selection, vb.taken_odds, vb.snapshot_id, o.match_id, o.market_id, o.line, m.kickoff_utc
+            FROM value_bets vb JOIN odds_snapshots o USING (snapshot_id) JOIN matches m ON m.match_id = o.match_id
+            JOIN bookmakers b USING (bookmaker_id)
+            WHERE vb.stake > 0 AND vb.placed_at >= ? AND b.name = 'Sky Bet' AND vb.result != 'void'""", (since,)):
+        if abs(line - round(line)) < 1e-9:
+            continue
+        close = con.execute("""
+            SELECT o.over_odds, o.under_odds, o.captured_at FROM odds_snapshots o JOIN bookmakers b USING (bookmaker_id)
+            WHERE b.name = 'Sky Bet' AND o.match_id = ? AND o.market_id = ? AND o.line = ? AND o.snapshot_id != ?
+              AND o.captured_at < ? AND o.captured_at >= strftime('%Y-%m-%dT%H:%M:%SZ', ?, ?)
+            ORDER BY o.captured_at DESC LIMIT 1""", (mid, market, line, snap, ko, ko, f"-{CLOSE_MIN} minutes")).fetchone()
+        if close is None:
+            continue
+        p_over, assumed = market_prob(close[0], close[1])
+        if p_over is None:
+            continue
+        p = p_over if sel == "over" else 1 - p_over
+        out.append(dict(bet_id=bet_id, clv=odds * p - 1, assumed=assumed, captured_at=close[2]))
+    return out
+
+
 # ───────────────────────────── scoring ─────────────────────────────
 def ll(p: np.ndarray, y: np.ndarray) -> np.ndarray:
     p = np.clip(p, 1e-9, 1 - 1e-9)
@@ -191,13 +223,16 @@ def cmd_score(args) -> int:
     print("\n1. Probability scoring (two-sided lines the bookmaker puts between 10% and 90%; above 0 = better than Sky Bet)")
     primary = summarise(bench, "benchmark matches (chosen without the model): the test", rng)
     summarise(lines, "every priced match (includes ones screenshotted because the model liked them)", rng)
-    print("\n2. Closing-line value on real bets")
-    clv = [r[0] for r in con.execute("SELECT clv FROM value_bets WHERE stake > 0 AND clv IS NOT NULL AND placed_at >= ?", (args.since,))]
+    print(f"\n2. Closing-line value on real bets, against Sky Bet's price in the last {CLOSE_MIN} minutes before kickoff")
+    closes = sky_clv(con, args.since)
+    clv = [c["clv"] for c in closes]
     if clv:
         lo, hi = (np.percentile([np.mean(rng.choice(clv, len(clv))) for _ in range(4000)], q) for q in (2.5, 97.5))
-        print(f"  {len(clv)} bets with a Betfair closing price: mean CLV {np.mean(clv):+.1%} (95% CI {lo:+.1%} to {hi:+.1%})")
+        assumed = sum(c["assumed"] for c in closes)
+        print(f"  {len(clv)} bets with a closing screenshot: mean CLV {np.mean(clv):+.1%} (95% CI {lo:+.1%} to {hi:+.1%})"
+              + (f"; {assumed} with no under price, margin assumed" if assumed else ""))
     else:
-        print("  no closing prices yet (they arrive once the Betfair logger, PR #1, is live)")
+        print(f"  no closing prices yet: screenshot the line you bet in the {CLOSE_MIN} minutes before kickoff")
     print("\n3. Paper bets on every priced line, 1 unit each")
     paper(lines, "verdict", "current rule (model value +8%)", rng)
     paper(lines, "blend_verdict", "blend rule (blended value +2%)", rng)

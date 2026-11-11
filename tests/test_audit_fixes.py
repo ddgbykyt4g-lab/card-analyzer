@@ -2,6 +2,8 @@
 totals, a bet logged in the same minute as a screenshot, a price file with one bad block, experiment A's
 latest price, a name that fits two teams, and the bet queue."""
 import json
+
+import pytest
 import math
 import sys
 from datetime import datetime, timezone
@@ -137,3 +139,21 @@ def test_bet_queue(tmp_path):
     assert calls[1][-4:] == ["--placed", "2026-11-14 10:00", "--adjusted-p", "0.5"]
     assert not list(q.glob("*.json"))
     assert json.loads((tmp_path / "out.json").read_text())[1]["bet"].startswith("C v D")
+
+
+# Experiment A amendment (11 Nov 2026): closing-line value against Sky Bet's price in the last 30 minutes
+def test_clv_against_sky_bets_closing_screenshot(db):
+    from experiment_a import sky_clv
+    bet = add_bet(db, "TOTAL_CARDS", "over", 4.5, 2.2, notes="manual entry: test")      # snapshot at 10:00 on 9 Oct
+    snap = lambda when, over, under: db.execute(
+        """INSERT INTO odds_snapshots (match_id, bookmaker_id, market_id, line, over_odds, under_odds, captured_at)
+           SELECT 1, 1, market_id, 4.5, ?, ?, ? FROM markets WHERE code = 'TOTAL_CARDS'""", (over, under, when))
+    snap("2026-10-10T10:30:00Z", 1.5, 2.5)        # an hour before kickoff: not the close
+    assert sky_clv(db, "2026-10-01") == []
+    snap("2026-10-10T11:10:00Z", 2.0, 1.8)        # 20 minutes before kickoff (11:30): the close
+    snap("2026-10-10T11:31:00Z", 3.0, 1.3)        # after kickoff: ignored
+    db.commit()
+    [c] = sky_clv(db, "2026-10-01")
+    fair_p = (1 / 2.0) / (1 / 2.0 + 1 / 1.8)
+    assert c["bet_id"] == bet and c["clv"] == pytest.approx(2.2 * fair_p - 1) and not c["assumed"]
+    assert sky_clv(db, "2026-10-10") == []         # bets placed before the start date don't count
