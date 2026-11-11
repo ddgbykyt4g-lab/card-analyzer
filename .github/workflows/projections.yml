@@ -60,6 +60,13 @@ jobs:
       - name: Log projections
         run: python agent/log_projections.py --db cards.db --days 2
 
+      - name: Remind about screenshots due in the next 48 hours (experiment A)
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          python review/experiment_a.py remind --db cards.db --hours 48 > /tmp/remind.txt || true
+          [ ! -s /tmp/remind.txt ] || agent/notify.sh "Screenshots needed" "$(cat /tmp/remind.txt)"
+
       - name: Alert on bets the two card sources would settle differently
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}

@@ -101,6 +101,8 @@ jobs:
         run: |
           if [ -s /tmp/sheet.json ]; then
             python agent/free_summary.py /tmp/sheet.json /tmp/settle.txt > /tmp/alert.txt
+            python review/experiment_a.py remind --db cards.db --hours 48 > /tmp/remind.txt || true
+            [ ! -s /tmp/remind.txt ] || { echo; cat /tmp/remind.txt; } >> /tmp/alert.txt
             if [ "$(cat /tmp/health.txt 2>/dev/null)" = "OK" ]; then
               agent/notify.sh "Cards ${{ steps.season.outputs.day }}" "$(cat /tmp/alert.txt)"
             else

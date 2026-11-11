@@ -157,3 +157,23 @@ def test_clv_against_sky_bets_closing_screenshot(db):
     fair_p = (1 / 2.0) / (1 / 2.0 + 1 / 1.8)
     assert c["bet_id"] == bet and c["clv"] == pytest.approx(2.2 * fair_p - 1) and not c["assumed"]
     assert sky_clv(db, "2026-10-10") == []         # bets placed before the start date don't count
+
+
+# Screenshot reminders for the daily and Saturday phone alerts
+def test_reminders_list_unpriced_benchmark_matches_and_closing_screenshots(db):
+    from experiment_a import is_benchmark, reminders
+    eid = next(f"espn-fx:{i}" for i in range(401870000, 401871000) if is_benchmark(f"espn-fx:{i}"))
+    db.execute("UPDATE matches SET external_id = ? WHERE match_id = 1", (eid,))   # Arsenal v Leeds, 10 Oct 11:30 UTC
+    db.commit()
+    now = datetime(2026, 10, 9, 12, 0, tzinfo=timezone.utc)
+    assert reminders(db, now) == [
+        "Experiment A benchmark matches: screenshot Sky Bet's Total cards over/under tab (both columns):",
+        "  Sat 12:30 Arsenal v Leeds (EPL)"]                                            # UK time (BST)
+    add_bet(db, "AWAY_CARDS", "over", 1.5, 2.0)                                         # a staked Leeds cards bet
+    db.execute("""INSERT INTO odds_snapshots (match_id, bookmaker_id, market_id, line, over_odds, under_odds, captured_at)
+                  SELECT 1, 1, market_id, 4.5, 2.0, 1.8, '2026-10-09T11:00:00Z' FROM markets WHERE code = 'TOTAL_CARDS'""")
+    db.commit()
+    assert reminders(db, now) == [                                                      # priced: benchmark done
+        "Your bets: screenshot the same line in the 30 minutes before kickoff (closing price):",
+        "  Arsenal v Leeds: Leeds cards over 1.5, screenshot between Sat 12:00 and 12:30"]
+    assert reminders(db, now, hours=12) == []                                           # nothing due yet
