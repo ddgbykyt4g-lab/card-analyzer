@@ -188,9 +188,16 @@ class TeamResolver:
         tid = self.by_norm.get(key)
         if tid is None:  # token-subset match, must be unique ("Newcastle" ~ "Newcastle Utd")
             toks = set(key.split())
-            subset = {t for k, t in self.by_norm.items()
+            subset = {(k, t) for k, t in self.by_norm.items()
                       if toks and (toks <= set(k.split()) or set(k.split()) <= toks)}
-            tid = subset.pop() if len(subset) == 1 else None
+            tid = None
+            if len({t for _, t in subset}) == 1:
+                k, tid = subset.pop()
+                # the words that matched must not fit another team just as well: "Paris Saint-Germain" ~ "Paris FC"
+                # rests on "paris" alone, which Paris SG has too ("Le Havre AC" ~ "Le Havre": Le Mans has "le" only)
+                shared = toks & set(k.split())
+                if any(t != tid and shared <= set(k2.split()) for k2, t in self.by_norm.items()):
+                    tid = None
         if tid is None:
             close = difflib.get_close_matches(key, list(self.by_norm), n=2, cutoff=0.85)
             tid = self.by_norm[close[0]] if len(close) == 1 else None
@@ -722,6 +729,47 @@ async def load_espn_cards(ctx: BrowserContext, db: DB, codes: list[str], path: P
             w.writeheader()
             w.writerows(sorted(rows.values(), key=lambda r: (r["kickoff_utc"], r["espn_id"])))
     log.info("ESPN card counts: %d finished matches in the last %d days, %d new or changed", seen, days, changed)
+
+
+def apply_espn_counts(db: DB, espn: dict[str, dict]) -> list[str]:
+    """Where football-data's card count for a team differs from ESPN's (data/espn_cards.csv), store ESPN's.
+    football-data shifted its card columns by one match for 18 matches on 7 Nov 2026 (ESPN was right in every
+    one), and the collector reloads football-data's rows on every run, so this runs after each reload.
+    Left alone: a difference football-data's two-yellow counting explains (both yellows of a dismissed player
+    in its yellow column), and any match with a staked bet still pending, so settle.py's cross-check still
+    sees both sources and lists it as CHECK until the user confirms what the bookmaker paid.
+    Returns 'Home v Away' for each match changed."""
+    if not espn:
+        return []
+    staked = {m for (m,) in db.q("""SELECT o.match_id FROM value_bets vb JOIN odds_snapshots o USING (snapshot_id)
+                                    WHERE vb.result = 'pending' AND vb.stake > 0""")}
+    changed = []
+    for eid, row in espn.items():
+        mid = db.match_by_espn(eid)
+        if mid is None or mid in staked or db.one("SELECT status FROM matches WHERE match_id=?", mid) != "finished":
+            continue
+        done = False
+        for team, is_home, y, y2, sr in db.q("""SELECT team_id, is_home, yellows, second_yellows, straight_reds
+                                                FROM match_team_cards WHERE match_id=?""", mid):
+            ha = "home" if is_home else "away"
+            ey, er = int(row[f"{ha}_yellows"]), int(row[f"{ha}_reds"])
+            diff = (y + y2 + sr) - (ey + er)
+            if diff == 0 or (y2 + sr == er and 0 < diff <= er):
+                continue
+            if y2 + sr == er:  # same dismissals: keep the stored split of second yellows and straight reds
+                db.con.execute("UPDATE match_team_cards SET yellows=? WHERE match_id=? AND team_id=?", (ey, mid, team))
+            else:  # dismissals differ: all reds for now, split_reds sorts out the second yellows from ESPN's events
+                db.con.execute("""UPDATE match_team_cards SET yellows=?, second_yellows=0, straight_reds=?,
+                                      yellows_1h=NULL, reds_1h=NULL WHERE match_id=? AND team_id=?""",
+                               (ey, er, mid, team))
+            done = True
+        if done:
+            changed.append(f"{row['home']} v {row['away']}")
+    db.commit()
+    if changed:
+        log.info("ESPN card counts used for %d matches where football-data differs: %s", len(changed),
+                 "; ".join(changed[:10]) + (" ..." if len(changed) > 10 else ""))
+    return changed
 
 
 # ───────────────────────────── Source 3a: ESPN week-ahead league fixtures ─────────────────────────────
@@ -1262,6 +1310,7 @@ async def run(args: argparse.Namespace) -> None:
                                  (load_results(ctx, db, c, s) for c in args.leagues for s in seasons))
             await _gather_logged("Fixtures", [load_upcoming(ctx, db, args.leagues, args.season)])
             mark_stale(db)
+            apply_espn_counts(db, read_espn_cards(args.espn_cards))  # before split_reds, which finishes the job
             if not args.no_espn:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))

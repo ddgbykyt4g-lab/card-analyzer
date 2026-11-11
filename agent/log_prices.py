@@ -7,6 +7,8 @@ Input file, one block per screen:
     3.5 1/8 4/1          line, over odds, under odds ("-" where a price is missing)
     4+ 2/5               "4 or more cards" screens: over-only, stored as line 3.5
 Odds are fractional or decimal. Re-running a file is harmless (duplicates are ignored).
+A block whose match can't be found within 7 days of its time, or that is timed after kickoff, is skipped
+with a SKIPPED line; the rest of the file is still loaded.
 Usage: python agent/log_prices.py --db cards.db prices.txt [--book "Sky Bet"]
 """
 import argparse
@@ -23,6 +25,7 @@ from price_sheet import MARKETS, find_match, parse_odds, refuse_exchange  # noqa
 from value_finder import ISO  # noqa: E402
 
 UK = ZoneInfo("Europe/London")
+DAYS_AHEAD = 7  # how far after the screenshot the match may be (check_prices and experiment A's pick: 7)
 HEADER = re.compile(r"^@\s*(?P<when>\d{4}-\d\d-\d\d \d\d:\d\d)\s*\|\s*(?P<home>.+?)\s+v\s+(?P<away>.+?)\s*\|\s*"
                     r"(?P<market>total|home|away)\s*$", re.I)
 
@@ -70,9 +73,14 @@ def log_blocks(db: DB, blocks: list[dict], book: str) -> int:
     book_id = con.execute("SELECT bookmaker_id FROM bookmakers WHERE name = ?", (book,)).fetchone()[0]
     added = 0
     for b in blocks:
-        fx = find_match(db, dict(home=b["home"], away=b["away"]), b["when"], 3, b["when"])
+        try:  # one block that can't be placed (a typo, a postponed match) mustn't stop the rest of the file
+            fx = find_match(db, dict(home=b["home"], away=b["away"]), b["when"], DAYS_AHEAD, b["when"])
+        except SystemExit as exc:
+            print(f"SKIPPED {b['home']} v {b['away']} {b['market']} at {b['when']:%Y-%m-%d %H:%M} UTC: {exc}")
+            continue
         if fx["kickoff_utc"] <= b["when"].strftime(ISO):
-            raise SystemExit(f"{fx['home']} v {fx['away']} kicked off before {b['when']:%Y-%m-%d %H:%M} UTC")
+            print(f"SKIPPED {fx['home']} v {fx['away']}: kicked off before {b['when']:%Y-%m-%d %H:%M} UTC")
+            continue
         mid = market_id(con, b["market"])
         for line, over, under in b["rows"]:
             if over is None and under is None:

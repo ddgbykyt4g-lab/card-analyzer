@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-24.04  # Playwright 1.56 has no Chromium build for 26.04 (ubuntu-latest since Oct 2026)
     timeout-minutes: 150   # short enough never to collide with the Saturday run; re-run to continue
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: main
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
           cache: pip
@@ -30,7 +30,11 @@ jobs:
       - name: Install
         run: |
           pip install -q -r requirements.txt
-          python -m playwright install --with-deps chromium
+          for i in 1 2 3; do   # Ubuntu's package mirrors sometimes drop out for a few minutes
+            python -m playwright install --with-deps chromium && break
+            [ "$i" = 3 ] && exit 1
+            echo "browser install failed, retry $i in $((60 * i))s"; sleep $((60 * i)); sudo apt-get update -q || true
+          done
 
       - name: Load earlier progress
         run: |

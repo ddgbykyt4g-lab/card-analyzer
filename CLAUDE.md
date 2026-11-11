@@ -23,7 +23,10 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
      leagues; England from 2026-27). `two_yellow_split` picks whichever matches ESPN's yellow events, so
      stored yellows always include the first yellow once. `--resplit` (with `--history N`) redoes every split
    - Writes ESPN's player-card counts for matches finished in the last 14 days to `data/espn_cards.csv`
-     (keyed on ESPN's event id; staff cards counted apart). football-data stays the model's card source
+     (keyed on ESPN's event id; staff cards counted apart). football-data is the model's card source, but
+     where its count for a match in that file differs from ESPN's, ESPN's is stored (`apply_espn_counts`, every
+     run after football-data reloads): not for a difference its two-yellow counting explains, nor while a staked
+     bet on the match is pending (that stays a `CHECK` until confirmed)
    - Settles pending bets automatically at the end of every run, voiding bets on matches not played
      within 3 days of the original kickoff date (`python settle.py --db cards.db` to run it alone)
 2. Find value:
@@ -34,6 +37,8 @@ EPL, La Liga, Serie A, Bundesliga, Ligue 1 and Scottish Premiership yellow/red c
 ## Two card sources
 football-data and ESPN disagree on about 3% of team card counts, and either can be wrong (football-data had
 the wrong yellows for all four Premier League matches of 7 Nov 2026, which settled a winning bet as lost).
+On 7 Nov 2026 football-data's card columns slid one match down in 18 matches across five leagues (fouls were
+right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's count where the two differ.
 - `settle.py` checks every bet with a stake against `data/espn_cards.csv`: same result from both sources,
   it settles; different results, the bet stays pending and is listed as `CHECK` until the user says what the
   bookmaker paid (`python settle.py --db cards.db --confirm BET_ID won|lost|push|void`); only ESPN has the
@@ -58,10 +63,13 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
   `reports/latest.md` (`agent/dashboard.py`).
 - `.github/workflows/log-bet.yml`: logs a bet from the GitHub app (inputs: bet, placed, adjusted_p,
-  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert. The Saturday, log-bet and projections workflows share the
-  `cards-db` concurrency group so they never push `cards.db` at the same time. `betfair.yml` has its own group
-  (`betfair-log`) and commits only `data/exchange/`, which no other workflow writes, so it never conflicts with
-  them; each workflow retries its pull-rebase-push because a push from the other group can land in between.
+  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert.
+  The bet is first committed to `data/bet_queue/` by a job outside the lock, then logged by one inside it
+  (`agent/bet_queue.py`): GitHub cancels a waiting run when a newer one arrives, and the newer run logs both.
+  With no placed time, the time it was queued is used. The Saturday, log-bet (logging job) and projections
+  workflows share the `cards-db` concurrency group so they never push `cards.db` at the same time. `betfair.yml`
+  has its own group (`betfair-log`) and commits only `data/exchange/`, which no other workflow writes, so it never
+  conflicts with them; each workflow retries its pull-rebase-push because a push from the other group can land in between.
 
 - `.github/workflows/projections.yml` (Sunday-Friday 08:47 UTC: 09:47 UK in summer) and the Saturday run append the model's
   pre-kickoff projection for every match in the next 2 days to `data/projections.csv` (`agent/log_projections.py`:
@@ -146,6 +154,12 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   minimum odds and a verdict per line for matches not yet kicked off, applying the shortlist rules of
   `agent/SATURDAY.md` step 5 (overs +8%, no tail bets under 40%, long team lines, heavy underdogs, no unders
   for now). It reads only; the user decides and places.
+- Experiment A (from 2026-11-10, plan and pass marks in `review/EXPERIMENT_A.md`; background in `REVIEW.md`):
+  `check_prices.py` also prints the model blended 50/50 with Sky Bet's de-vigged price and a second "blend
+  rule" verdict (blended value +2%). The current-rule verdict is unchanged. `python review/experiment_a.py pick`
+  lists the week's benchmark matches (about a quarter of fixtures, fixed by a hash of the ESPN id, chosen
+  without the model); `... score` reports blend against Sky Bet. Don't change `BLEND_W`, `BLEND_EV`, the
+  start date or the benchmark rule while it runs: a change is a new experiment.
 - Don't change the schema without asking; propose migrations as new `.sql` files.
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.

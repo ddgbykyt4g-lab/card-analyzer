@@ -1,0 +1,80 @@
+
+=== 1a. Look-ahead test: scramble the future, predictions must not move ===
+  week starting 2026-08-31 (62 matches): largest change in projected cards: refit only 1.7e-13, future scrambled 1.7e-13, own day scrambled 5.6e-14
+  week starting 2025-12-08 (53 matches): largest change in projected cards: refit only 1.3e-15, future scrambled 1.3e-15, own day scrambled 6.7e-16
+  week starting 2026-08-17 (37 matches): largest change in projected cards: refit only 4.4e-15, future scrambled 4.4e-15, own day scrambled 2.2e-15
+  week starting 2026-01-19 (55 matches): largest change in projected cards: refit only 9.9e-14, future scrambled 9.9e-14, own day scrambled 4.4e-14
+  -> PASS: predictions do not depend on results, cards, fouls or prices from the future (tolerance 1e-06, the refit-only difference)
+
+=== 1b. Which 1X2 odds feed the model ===
+  sources in match_prices: [('football-data:avg', 10623)]
+  code: collect_cards.upsert_prices stores football-data's AvgH/AvgD/AvgA (pre-match market average),
+        not AvgCH/AvgCD/AvgCA (closing). Live projections made before football-data posts a match use
+        ESPN's bookmaker line instead (store_prices, overwrite=False).
+
+=== 1c. Live log against the backtest for the same matches (a leak would make the backtest look better) ===
+  283 matches logged before kickoff and since finished
+  mean projection: live 3.987, backtest 3.922, actual 4.194; correlation live/backtest 0.990
+  RMSE: live 2.065, backtest 2.063
+  log-loss: live -2.1323, backtest -2.1283; backtest minus live +0.0039 (95% CI -0.0037 to +0.0111)
+
+=== 2. Walk-forward results by period (weekly refit on earlier matches only) ===
+  tuned on (2022-24): n=4034  log-loss -2.1519  RMSE 2.135  Brier 0.1854  projected 4.33 v actual 4.31
+      league-average baseline: log-loss -2.1930  RMSE 2.215  Brier 0.1932
+  reported as out-of-sample (2024-27): n=4534  log-loss -2.1109  RMSE 2.054  Brier 0.1811  projected 4.14 v actual 4.06
+      league-average baseline: log-loss -2.1457  RMSE 2.122  Brier 0.1884
+  2024-25: n=1979  model log-loss -2.1393 v baseline -2.1763 (gain +0.0370)  projected 4.26 v actual 4.11
+  2025-26: n=1980  model log-loss -2.0910 v baseline -2.1269 (gain +0.0359)  projected 4.06 v actual 4.04
+  2026-27: n=575  model log-loss -2.0819 v baseline -2.1056 (gain +0.0237)  projected 3.96 v actual 3.97
+  model minus baseline log-loss per match, 2024-27: +0.0348 (95% CI +0.0270 to +0.0424)
+
+=== 2b. Half-life sensitivity (was the tuned value lucky on the later seasons?) ===
+  half-life  60 days: 2022-24 log-loss -2.1533   2024-27 log-loss -2.1174
+  half-life 120 days: 2022-24 log-loss -2.1519   2024-27 log-loss -2.1109
+  half-life 240 days: 2022-24 log-loss -2.1538   2024-27 log-loss -2.1079
+  half-life 480 days: 2022-24 log-loss -2.1571   2024-27 log-loss -2.1095
+
+=== 3a. Dispersion, out-of-sample 2024-27 (1.00 = Poisson) ===
+  per team: 0.878   match total: 1.017
+  correlation between the two teams' residuals in a match: +0.166 (95% CI +0.138 to +0.194)
+  NB size used for totals, by league (None = Poisson): {'BUNDES': None, 'EPL': None, 'LALIGA': None, 'LIGUE1': None, 'SERIEA': None, 'SPL': 379.3}
+  observed v predicted share of match totals, 2024-27:
+   cards:        0     1     2     3     4     5     6     7     8     9    10    11   12+
+   observed: 0.030 0.071 0.138 0.182 0.192 0.158 0.103 0.061 0.032 0.019 0.008 0.003 0.002
+   model:    0.020 0.074 0.141 0.184 0.184 0.152 0.107 0.066 0.037 0.019 0.009 0.004 0.003
+
+=== 3b. Team lines priced as independent Poisson, out-of-sample 2024-27 ===
+  team over 0.5: predicted 0.863, observed 0.873, Brier 0.1075, calibration slope 1.13
+  team over 1.5: predicted 0.601, observed 0.611, Brier 0.2243, calibration slope 1.10
+  team over 2.5: predicted 0.341, observed 0.333, Brier 0.2112, calibration slope 1.01
+  team over 3.5: predicted 0.162, observed 0.141, Brier 0.1177, calibration slope 0.95
+  each team 2+ (priced as a product): predicted 0.363, observed 0.396
+
+=== 3c. Coefficients of the current fit, and collinearity of the continuous features ===
+  home team effect: x0.931 cards
+  win-prob gap (own - opp)     -0.248
+  |gap|                        -0.501
+  p(draw)                      -0.457
+  log own fouls committed      +1.536
+  log opponent fouls drawn     +1.898
+  VIF: win-prob gap (own - opp) 1.1, |gap| 5.8, p(draw) 5.9, log own fouls committed 1.1, log opponent fouls drawn 1.0
+  correlation |gap| with p(draw): -0.91
+  team discipline: 152 effects, sd 0.041 (multiplier range x0.93 to x1.07, 5th-95th pct)
+  opponent provocation: 152 effects, sd 0.039 (multiplier range x0.94 to x1.08, 5th-95th pct)
+  referee: 230 effects, sd 0.024 (multiplier range x0.96 to x1.04, 5th-95th pct)
+  league intercepts (cards per team at neutral values): BUNDES 2.48, EPL 2.69, LALIGA 3.06, LIGUE1 2.47, SERIEA 2.38, SPL 2.63
+
+=== 4. Calibration of match-total overs ===
+  Walk-forward backtest, 2024-27: over 2.5: n=4534 predicted 0.764 observed 0.760 Brier 0.1759 slope 0.93 intercept +0.05
+  Walk-forward backtest, 2024-27: over 3.5: n=4534 predicted 0.580 observed 0.578 Brier 0.2320 slope 0.98 intercept -0.00
+  Walk-forward backtest, 2024-27: over 4.5: n=4534 predicted 0.395 observed 0.386 Brier 0.2250 slope 0.98 intercept -0.05
+  Walk-forward backtest, 2024-27: over 5.5: n=4534 predicted 0.244 observed 0.228 Brier 0.1675 slope 1.03 intercept -0.06
+  Walk-forward backtest, 2024-27: over 6.5: n=4534 predicted 0.137 observed 0.125 Brier 0.1050 slope 1.06 intercept -0.01
+  Live log (logged before kickoff): over 2.5: n=283 predicted 0.743 observed 0.777 Brier 0.1694 slope 0.95 intercept +0.24
+  Live log (logged before kickoff): over 3.5: n=283 predicted 0.552 observed 0.590 Brier 0.2361 slope 0.83 intercept +0.19
+  Live log (logged before kickoff): over 4.5: n=283 predicted 0.367 observed 0.406 Brier 0.2369 slope 0.73 intercept +0.03
+  Live log (logged before kickoff): over 5.5: n=283 predicted 0.221 observed 0.276 Brier 0.1945 slope 0.86 intercept +0.14
+  Live log (logged before kickoff): over 6.5: n=283 predicted 0.121 observed 0.152 Brier 0.1212 slope 1.26 intercept +0.76
+  chart: review/out/reliability.png (points = equal-count bins, bars = 95% interval, dashed = perfect)
+  backtest 2024-27: log-loss -2.1109, Brier 0.1811, RMSE 2.054
+  live log: n=283, log-loss -2.1323, Brier 0.1916, projected 3.99 v actual 4.19

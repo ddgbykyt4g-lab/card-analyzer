@@ -91,6 +91,10 @@ Write `reports/<YYYY-MM-DD>.md` containing:
   (match totals: drop the `Team` part, e.g. `"Home v Away over 3.5 @ <odds> ..."`).
 - The track record from `settle.py --report`.
 - Coverage gaps: leagues or matches not researched, missing referees, missing 1X2 prices.
+- **Benchmark matches (experiment A, `review/EXPERIMENT_A.md`):** the output of
+  `python review/experiment_a.py pick`, under its own heading, with one line asking the user to screenshot Sky
+  Bet's Total cards over/under tab for each, whether or not it is on the shortlist. Put the list in the phone
+  alert too. These are chosen without the model, so don't add, drop or reorder them.
 
 Then commit `cards.db` and the report and push:
 ```
