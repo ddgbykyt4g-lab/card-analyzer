@@ -76,6 +76,19 @@ def cluster_ci(values: np.ndarray, groups: np.ndarray, rng, n: int = 4000) -> tu
     return float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))
 
 
+def latest_prices(snaps: list[dict]) -> dict[tuple, dict]:
+    """The price scored for each match, market and line: the latest two-sided one (EXPERIMENT_A.md), else the
+    latest one-sided one (still a paper bet). A logged bet adds an over-only snapshot after the screenshot's
+    two-sided price; it must not displace it. snaps: in capture order."""
+    two, any_ = {}, {}
+    for s in snaps:
+        key = (s["match_id"], s["code"], s["line"])
+        any_[key] = s
+        if s["over_odds"] and s["under_odds"]:
+            two[key] = s
+    return {k: two.get(k, v) for k, v in any_.items()}
+
+
 def load_lines(con: sqlite3.Connection, log: str, espn_path: str, since: str) -> list[dict]:
     """The latest pre-kickoff Sky Bet price of each match/market/line captured since `since`, settled, with
     the model probability logged before the price was captured. Outcomes prefer ESPN's count (CLAUDE.md)."""
@@ -96,7 +109,7 @@ def load_lines(con: sqlite3.Connection, log: str, espn_path: str, since: str) ->
         mid = by_ext.get(event_id(r["external_id"]))
         if mid is not None and r["mu_home"]:
             logged[mid].append(r)
-    latest = {}
+    snaps = []
     for s in con.execute("""
             SELECT o.match_id, o.line, o.over_odds, o.under_odds, o.captured_at, mk.code, m.external_id,
                    h.name || ' v ' || a.name AS fixture, p.p_home, p.p_away
@@ -105,10 +118,9 @@ def load_lines(con: sqlite3.Connection, log: str, espn_path: str, since: str) ->
             JOIN teams a ON a.team_id = m.away_team_id LEFT JOIN match_prices p ON p.match_id = m.match_id
             WHERE b.name = 'Sky Bet' AND mk.code IN ('TOTAL_CARDS', 'HOME_CARDS', 'AWAY_CARDS')
               AND o.captured_at < m.kickoff_utc AND o.captured_at >= ? ORDER BY o.captured_at""", (since,)):
-        s = dict(s)
-        latest[(s["match_id"], s["code"], s["line"])] = s
+        snaps.append(dict(s))
     out = []
-    for s in latest.values():
+    for s in latest_prices(snaps).values():
         side = SIDE[s["code"]]
         proj = [r for r in logged.get(s["match_id"], []) if r["logged_at"] <= s["captured_at"]]
         if s["match_id"] not in actual or not proj or not s["over_odds"]:

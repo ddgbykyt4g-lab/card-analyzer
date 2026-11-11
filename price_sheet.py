@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from collect_cards import DB, TeamResolver
-from settle import settle
+from settle import ESPN_CARDS, read_espn_cards, settle
 from value_finder import (DEFAULT_WEIGHTS, ISO, Config, Projector, Weights, is_quarter_line, side_probs,
                           weights_for)
 
@@ -251,7 +251,8 @@ def poisson_tail(mu: float, line: float, selection: str) -> tuple[float, float]:
 
 
 def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float, min_ev: float,
-            placed: datetime | None = None, adjusted_p: float | None = None, reason: str | None = None) -> dict:
+            placed: datetime | None = None, adjusted_p: float | None = None, reason: str | None = None,
+            espn_cards=ESPN_CARDS) -> dict:
     bet = parse_bet(text)
     adjusted_p = adjusted_p if adjusted_p is not None else bet.get("adjusted_p")
     reason = reason or bet.get("reason")
@@ -308,9 +309,14 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
 
     captured = (placed or now).strftime(ISO)
     side_col = "over_odds" if bet["selection"] == "over" else "under_odds"
-    snap_id = con.execute(
+    # a price logged from a screenshot in the same minute is the same snapshot: reuse it, filling this side if blank
+    con.execute(
         f"INSERT INTO odds_snapshots (match_id, bookmaker_id, market_id, line, {side_col}, captured_at) "
-        "VALUES (?,?,?,?,?,?)", (fx["match_id"], book_id, market_id, bet["line"], bet["odds"], captured)).lastrowid
+        "VALUES (?,?,?,?,?,?) ON CONFLICT (match_id, bookmaker_id, market_id, line, captured_at) "
+        f"DO UPDATE SET {side_col} = COALESCE({side_col}, excluded.{side_col})",
+        (fx["match_id"], book_id, market_id, bet["line"], bet["odds"], captured))
+    snap_id = db.one("""SELECT snapshot_id FROM odds_snapshots WHERE match_id = ? AND bookmaker_id = ? AND market_id = ?
+                        AND line = ? AND captured_at = ?""", fx["match_id"], book_id, market_id, bet["line"], captured)
     provisional = fx["referee_id"] is None
     notes = " | ".join(x for x in (
         f"manual entry: {text.strip()}",
@@ -329,7 +335,8 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
         (snap_id, bet["selection"], projector.version, projected, p_win, p_push, bet["odds"], bet["stake"],
          kelly, captured, notes)).lastrowid
     con.commit()
-    settled = settle(con) if fx["status"] == "finished" else []
+    # with ESPN's counts, as every other settle run: a bet the two sources dispute stays pending
+    settled = settle(con, read_espn_cards(espn_cards)) if fx["status"] == "finished" else []
     result = next((s for s in settled if s["bet_id"] == bet_id), None)
     return dict(bet_id=bet_id, snapshot_id=snap_id, fixture=f"{fx['home']} v {fx['away']}",
                 kickoff_utc=fx["kickoff_utc"], referee=fx["referee"], provisional=provisional,

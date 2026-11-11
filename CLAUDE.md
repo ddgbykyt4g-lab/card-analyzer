@@ -58,7 +58,10 @@ the wrong yellows for all four Premier League matches of 7 Nov 2026, which settl
   run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
   `reports/latest.md` (`agent/dashboard.py`).
 - `.github/workflows/log-bet.yml`: logs a bet from the GitHub app (inputs: bet, placed, adjusted_p,
-  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert. Both workflows share the
+  reason), loading appointed referees first (`collect_cards.py --referees-only`) so the bet is priced with them, refreshes `reports/latest.md`, pushes and confirms by phone alert.
+  The bet is first committed to `data/bet_queue/` by a job outside the lock, then logged by one inside it
+  (`agent/bet_queue.py`): GitHub cancels a waiting run when a newer one arrives, and the newer run logs both.
+  With no placed time, the time it was queued is used. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
 
 - `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's

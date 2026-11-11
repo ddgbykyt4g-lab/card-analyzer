@@ -323,6 +323,7 @@ def latest_quotes(con: sqlite3.Connection, match_id: int, now: datetime, max_age
                JOIN markets mk USING (market_id)
                JOIN bookmakers b USING (bookmaker_id)
                WHERE o.match_id = ? AND mk.scope = 'match' AND mk.period = 'FT'
+                 AND mk.code <> 'EACH_TEAM_CARDS'  -- match scope, but settles on each team's count
                  AND o.captured_at BETWEEN ? AND ?)
            WHERE rn = 1""",
         (match_id, (now - timedelta(hours=max_age_h)).strftime(ISO), now.strftime(ISO))).fetchall()
