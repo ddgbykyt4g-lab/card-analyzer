@@ -139,7 +139,9 @@ def reminders(con: sqlite3.Connection, now: datetime, hours: float = 48) -> list
 
 
 def cmd_remind(args) -> int:
-    print("\n".join(reminders(connect(args.db), datetime.now(timezone.utc), args.hours)))
+    lines = reminders(connect(args.db), datetime.now(timezone.utc), args.hours)
+    if lines:  # nothing at all when nothing is due: the workflows send an alert whenever the output isn't empty
+        print("\n".join(lines))
     return 0
 
 
