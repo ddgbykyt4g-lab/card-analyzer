@@ -177,3 +177,12 @@ def test_reminders_list_unpriced_benchmark_matches_and_closing_screenshots(db):
         "Your bets: screenshot the same line in the 30 minutes before kickoff (closing price):",
         "  Arsenal v Leeds: Leeds cards over 1.5, screenshot between Sat 12:00 and 12:30"]
     assert reminders(db, now, hours=12) == []                                           # nothing due yet
+
+
+def test_remind_prints_nothing_when_nothing_is_due(db, tmp_path, capsys):
+    from argparse import Namespace
+    from experiment_a import cmd_remind
+    db.execute("UPDATE matches SET status = 'finished'")
+    db.commit()
+    cmd_remind(Namespace(db=str(tmp_path / "t.db"), hours=48))
+    assert capsys.readouterr().out == ""                   # not even a newline: the alert step sends on any output
