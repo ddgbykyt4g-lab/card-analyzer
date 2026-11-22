@@ -270,6 +270,51 @@ class CardGLM:
         return mu[0::2], mu[1::2], sizes
 
 
+# ───────────────────────────── Each-team dependence (shadow, test 2b) ─────────────────────────────
+# Post-freeze test 2b (agent/POST_FREEZE.md, review/test2b_each_team.py): the two teams' cards move together
+# (residual correlation about +0.17) while each team's count is Poisson around the model. A common-shock
+# bivariate Poisson keeps each marginal Poisson(mu) and adds the dependence. Logged and shown beside the live
+# each-team price; it does not change any live price until a confirmation read passes.
+def team_link(model: "CardGLM", d: Data, train: np.ndarray, asof_day: int, half_life: float) -> dict[str, float]:
+    """rho per league code: recency-weighted covariance of home and away residuals over the weighted mean of
+    sqrt(mu_h * mu_a), on the training matches, floored at 0."""
+    if not len(train):
+        return {}
+    th, ta, _ = model.predict(train)
+    w = 0.5 ** ((asof_day - d.day[train]) / half_life)
+    lg = np.array(d.league)[train]
+    out = {}
+    for code in set(lg.tolist()):
+        m = lg == code
+        cov = np.sum(w[m] * (d.y[2 * train[m]] - th[m]) * (d.y[2 * train[m] + 1] - ta[m])) / w[m].sum()
+        scale = np.sum(w[m] * np.sqrt(th[m] * ta[m])) / w[m].sum()
+        out[code] = round(max(float(cov / scale), 0.0), 4) if scale > 0 else 0.0
+    return out
+
+
+def each_team_over(mu_h: float, mu_a: float, rho: float, line: float, kmax: int = 25) -> float:
+    """P(both teams' cards > line) with each team Poisson(mu) and a shared Poisson part
+    l3 = rho * sqrt(mu_h * mu_a), capped at 0.9 * min(mu). rho = 0 gives the independent product."""
+    k = math.floor(line) + 1
+    l3 = min(max(rho, 0.0) * math.sqrt(mu_h * mu_a), 0.9 * min(mu_h, mu_a))
+
+    def pois(mu):
+        return [math.exp(j * math.log(mu) - mu - math.lgamma(j + 1)) if mu > 0 else float(j == 0) for j in range(kmax)]
+
+    def tail(p, n):  # P(X >= n)
+        return max(1.0 - sum(p[:max(n, 0)]), 0.0)
+
+    p1, p2, p3 = pois(mu_h - l3), pois(mu_a - l3), pois(l3)
+    return float(sum(p3[s] * tail(p1, k - s) * tail(p2, k - s) for s in range(kmax)))
+
+
+def joint_prob(mu_h: float, mu_a: float, rho: float, h: int, a: int) -> float:
+    """P(home = h, away = a) under the same common-shock model (rho = 0: independent Poisson)."""
+    l3 = min(max(rho, 0.0) * math.sqrt(mu_h * mu_a), 0.9 * min(mu_h, mu_a))
+    pois = lambda mu, j: math.exp(j * math.log(mu) - mu - math.lgamma(j + 1)) if mu > 0 else float(j == 0)
+    return float(sum(pois(l3, s) * pois(mu_h - l3, h - s) * pois(mu_a - l3, a - s) for s in range(min(h, a) + 1)))
+
+
 class GLMPredictor:
     """Fits once on every finished match before `asof`, then predicts any loaded match."""
 
@@ -279,6 +324,7 @@ class GLMPredictor:
         day = int(np.datetime64(asof[:10], "D").astype(int))
         train = np.where(self.d.finished & (self.d.day < day))[0]
         self.model = CardGLM(self.d, cfg).fit(train, day)
+        self.rho = team_link(self.model, self.d, train, day, cfg.half_life_days)  # shadow only (test 2b)
         self.ix = {int(m): i for i, m in enumerate(self.d.match_id)}
 
     def predict(self, match_id: int) -> dict | None:
@@ -287,7 +333,7 @@ class GLMPredictor:
             return None
         h, a, sizes = self.model.predict(np.array([i]))
         return dict(mean=float(h[0] + a[0]), home=float(h[0]), away=float(a[0]), size=sizes[0],
-                    has_prices=bool(self.d.has_prices[i]))
+                    has_prices=bool(self.d.has_prices[i]), rho=self.rho.get(self.d.league[i], 0.0))
 
 
 # ───────────────────────────── Walk-forward backtest ─────────────────────────────

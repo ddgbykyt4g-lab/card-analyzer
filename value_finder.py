@@ -295,7 +295,7 @@ class Projector:
                           + ("" if g["has_prices"] else " (no 1X2 prices)")
                           + f" dist={'NB r=%.1f' % size if size else 'Poisson'}",
                           dict(model="glm", home_mu=round(g["home"], 3), away_mu=round(g["away"], 3),
-                               has_prices=g["has_prices"],
+                               has_prices=g["has_prices"], rho=g["rho"],
                                distribution=f"NB r={size:.1f}" if size else "Poisson"))
         proj = project(self.stats, self.cfg, fx, w)
         if proj is None:

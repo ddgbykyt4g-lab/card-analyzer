@@ -42,6 +42,11 @@ a confirmation read on fresh matches.
   +0.033 -> +0.015 (halved, the second check); each team 3+ 0.118 -> 0.136 v 0.131 actual; single-team lines
   and match totals unchanged by construction. Each team 2+ probability rises 1.8 points on average (0.6-3.0).
   Per the rules: log alongside glm-v4.1, not swapped in, until a confirmation read on fresh matches.
+  **In shadow from 22 Nov 2026:** rho logged per match in `data/projections.csv`; `check_prices.py` shows the 2b
+  each-team price and verdict beside the live one. **Confirmation read, fixed now:** on 300+ finished matches
+  logged with rho, `score_projections.py` must show a joint (home, away) log-loss gain above 0 and an each
+  team 2+ gap to actual narrower than the live pricing's. At current fixture counts that is about 6 weeks
+  (mid-January). Passing, it goes live for each-team prices only, with the user's agreement.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
