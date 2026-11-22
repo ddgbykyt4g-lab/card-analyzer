@@ -55,7 +55,10 @@ a confirmation read on fresh matches.
   +0.05. Fitted effect x1.22 per team. Sky Bet already prices rivalries high (Seville, Liverpool v Man United,
   Getafe v Atletico, the Nordderby), so the flag mostly removes false unders and brings derby overs nearer the
   market; it will rarely create a bet on its own.
-  **Decision (user: "use your judgement", 22 Nov):** shadow, not live. Logged per derby (`mu_*_6a`, `pmf_6a`
+  **Final decision (user, 22 Nov): kept on the `test6-derby` branch, not merged.** Derbies are judged on the
+  day within the usual ±8-point research adjustment; the derby figure can be run from this branch on request.
+  Nothing below is on main, so no derby projections are logged and no confirmation read accumulates.
+  Superseded proposal: shadow, not live. Logged per derby (`mu_*_6a`, `pmf_6a`
   in `data/projections.csv`) and used now only as the derby part of the Saturday research adjustment, inside
   the existing ±8-point cap. **Confirmation read, fixed now:** 60+ finished derbies logged with the flag;
   `score_projections.py` must show a log-loss gain above 0 and a smaller gap to actual than the live model.
