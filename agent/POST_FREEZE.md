@@ -48,7 +48,9 @@ a confirmation read on fresh matches.
   team 2+ gap to actual narrower than the live pricing's. At current fixture counts that is about 6 weeks
   (mid-January). Passing, it goes live for each-team prices only, with the user's agreement.
 - **Test 6a, derby flag: primary FAIL, secondary strong; user to decide** (22 Nov, `review/test6a_derby.py`,
-  46 pairs fixed from general knowledge before running). All matches +0.0018 a match on 2024-27 (CI -0.0002 to
+  46 pairs fixed from general knowledge before running; no card data was looked at, but the list was written the
+  same weekend Sky Bet was seen pricing several rivalries high, so which borderline pairs went in may have been
+  shaped by that: Napoli v Roma, Juventus v Inter, Chelsea v Arsenal, Leeds v Man United are judgement calls). All matches +0.0018 a match on 2024-27 (CI -0.0002 to
   +0.0038), short of +0.004 because derbies are 176 of 4,534 matches. On derbies alone: +0.045 (CI -0.004 to
   +0.093), positive in every season (+0.057, +0.018, +0.116) and on the tuned seasons (+0.016). The current model
   under-projects derbies by **0.72 cards** (4.09 against 4.81, CI +0.40 to +1.04); with the flag the gap is
