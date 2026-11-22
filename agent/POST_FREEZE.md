@@ -1,9 +1,22 @@
 # Post-freeze test list
 
-The model is frozen (glm-v4) until `data/projections.csv` has about 300 scored matches (early December 2026)
-and glm-v4 has been judged on them with `agent/score_projections.py`. Nothing here changes projections before
-then. After that, test each item in order with `python glm_model.py --db cards.db --backtest` and keep it only
-if it wins on seasons it wasn't tuned on (CLAUDE.md).
+**Freeze lifted 22 Nov 2026 (user's decision).** glm-v4 judged on 283 scored matches of `data/projections.csv`:
+live log-loss -2.112 against -2.111 in the backtest for the same matches, RMSE 2.03 against 2.05, so the live
+model performs as backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
+were not yet on football-data; re-score when they are. glm-v4.1 stays live while the tests below run.
+
+Each test: walk-forward on 2024-27 (seasons not tuned on), against the current model on the same matches.
+Pass bar (user, 11 Nov): +0.004 log-loss per match; a pass is logged alongside glm-v4.1, not swapped in, until
+a confirmation read on fresh matches.
+
+## Results
+
+- **Test 3, fast league level: FAIL** (22 Nov, `review/test3_league_level.py`). A 30-day, 30-match-prior
+  league correction on top of the fit: +0.0017 a match on 2024-27 (95% CI -0.0000 to +0.0035), positive in
+  2024-25 only (+0.0052), slightly negative in 2025-26 and 2026-27; +0.0037 on the tuned seasons. No setting
+  in the sensitivity grid reaches the bar (best +0.0023). The walk-forward 2026-27 league biases are small
+  (EPL +0.26, La Liga +0.12, Serie A -0.31); the live log's larger gaps (La Liga +0.58, EPL +0.53 on 50
+  matches each, standard error about 0.28) are mostly noise.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
