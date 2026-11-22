@@ -3,7 +3,7 @@
 
   python review/test6a_derby.py [cards.db]
 
-DERBIES is fixed here from general football knowledge (city, regional and traditional rivalries), written
+DERBIES (derbies.py) is fixed from general football knowledge (city, regional and traditional rivalries), written
 before any card data was looked at; it is not to be edited on the results. The candidate adds one feature,
 1 for both team rows of a derby (either venue), 0 otherwise, penalised like the other features.
 
@@ -24,32 +24,12 @@ from wf import SKY, TUNED, UNTUNED, boot_ci, connect  # noqa: E402
 from glm_model import Data, GLMConfig  # noqa: E402
 
 BAR = 0.004
-DERBIES = {
-    "EPL": [("Arsenal", "Tottenham"), ("Liverpool", "Everton"), ("Man United", "Man City"), ("Liverpool", "Man United"),
-            ("Chelsea", "Tottenham"), ("Chelsea", "Arsenal"), ("West Ham", "Tottenham"), ("Newcastle", "Sunderland"),
-            ("Crystal Palace", "Brighton"), ("Leeds", "Man United")],
-    "LALIGA": [("Real Madrid", "Ath Madrid"), ("Real Madrid", "Barcelona"), ("Barcelona", "Espanol"),
-               ("Sevilla", "Betis"), ("Ath Bilbao", "Sociedad"), ("Valencia", "Villarreal"), ("Valencia", "Levante"),
-               ("Celta", "La Coruna")],
-    "SERIEA": [("Inter", "Milan"), ("Roma", "Lazio"), ("Juventus", "Torino"), ("Genoa", "Sampdoria"),
-               ("Juventus", "Inter"), ("Napoli", "Roma")],
-    "BUNDES": [("Dortmund", "Schalke 04"), ("Dortmund", "Bayern Munich"), ("Hamburg", "Werder Bremen"),
-               ("FC Koln", "M'gladbach"), ("FC Koln", "Leverkusen"), ("Hamburg", "St Pauli"),
-               ("Union Berlin", "Hertha"), ("Ein Frankfurt", "Darmstadt")],
-    "LIGUE1": [("Paris SG", "Marseille"), ("Lyon", "St Etienne"), ("Nice", "Monaco"), ("Lens", "Lille"),
-               ("Rennes", "Nantes"), ("Rennes", "Brest"), ("Rennes", "Lorient"), ("Brest", "Lorient"),
-               ("Marseille", "Lyon"), ("Paris SG", "Paris FC")],
-    "SPL": [("Celtic", "Rangers"), ("Hearts", "Hibernian"), ("Dundee", "Dundee United"), ("Aberdeen", "Rangers")],
-}
+from derbies import DERBIES, derby_matches  # noqa: E402  (list fixed in derbies.py)
 
 
 def derby_column(con, d: Data) -> np.ndarray:
-    names = dict(con.execute("SELECT team_id, name FROM teams"))
-    pairs = {(lg, frozenset(p)) for lg, ps in DERBIES.items() for p in ps}
-    home_away = dict((m, (h, a)) for m, h, a in con.execute("SELECT match_id, home_team_id, away_team_id FROM matches"))
-    flag = np.array([float((d.league[i], frozenset(names[t] for t in home_away[int(m)])) in pairs)
-                     for i, m in enumerate(d.match_id)])
-    return np.repeat(flag, 2)[:, None]
+    derby = derby_matches(con)
+    return np.repeat([float(int(m) in derby) for m in d.match_id], 2)[:, None]
 
 
 def main(db):
@@ -83,8 +63,6 @@ def main(db):
     print(f"  -> primary: {'PASS' if g >= BAR else 'FAIL'} against the +{BAR} bar over all matches")
 
     print("\n  Derby matches 2024-27, actual v projected cards (current, candidate):")
-    for lg in DERBIES:
-        dm = [m for m in un if is_derby[m] and base[m].get("league", lg) == lg]
     rows = [(m, base[m]) for m in un if is_derby[m]]
     y = np.array([r["y_h"] + r["y_a"] for _, r in rows])
     mb = np.array([r["mu_h"] + r["mu_a"] for _, r in rows])

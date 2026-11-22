@@ -286,6 +286,25 @@ class Projector:
             self.glm[unit] = GLMPredictor(self.con, self.asof, weights=unit)
         return self.glm[unit]
 
+    def price_derby(self, fx: sqlite3.Row, w: Weights) -> dict | None:
+        """Shadow projection with the derby flag (post-freeze test 6a) for a derby, else None. Fitted on first
+        use only, so matches that aren't derbies cost nothing. Never used for live prices."""
+        from derbies import is_derby
+        from glm_model import GLMConfig, GLMPredictor
+        if self.glm is None or not is_derby(fx["league"], fx["home"], fx["away"]):
+            return None
+        unit = Weights(1, w.second_yellow / w.yellow, w.straight_red / w.yellow)
+        if any(x != int(x) for x in (unit.second_yellow, unit.straight_red)):
+            unit = DEFAULT_WEIGHTS["cards"]
+        self.derby_glm = getattr(self, "derby_glm", {})
+        if unit not in self.derby_glm:
+            self.derby_glm[unit] = GLMPredictor(self.con, self.asof, GLMConfig(derby=True), weights=unit)
+        g = self.derby_glm[unit].predict(fx["match_id"])
+        if g is None:
+            return None
+        return dict(mean=g["mean"] * w.yellow, home_mu=g["home"], away_mu=g["away"], size=g["size"],
+                    pmf=make_pmf(g["mean"], g["size"]))
+
     def price(self, fx: sqlite3.Row, w: Weights) -> Priced | None:
         scale = w.yellow
         if self.glm is not None and (g := self._glm(w).predict(fx["match_id"])):

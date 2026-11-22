@@ -17,6 +17,10 @@ Each-team blocks ("each": both teams 2+, ...) are priced as live, with the teams
 with the dependence model of post-freeze test 2b (glm_model.each_team_over), its value and its own verdict
 ("2b"), logged in shadow until its confirmation read. The live verdict is the current one.
 
+Derbies (derbies.py) also get the derby-flag projection of post-freeze test 6a, in shadow: its probability per
+line, capped at the model's +-8 points (the research-adjustment limit of SATURDAY.md step 3), the value at that
+adjusted probability and its verdict. It is a ready-made research adjustment, not a live price.
+
 Experiment A (review/EXPERIMENT_A.md) adds a second verdict beside that one, without changing it. The model's
 probability is blended half-and-half (on the logit scale) with the bookmaker's own de-vigged probability, and
 the blend rule backs the shortest over whose blended value is +2% or more. Both verdicts are printed; which to
@@ -45,6 +49,7 @@ TAIL_P = 0.40          # an over the model rates below this is a tail bet
 LONG_TEAM_LINE = 2.5   # "3 or more" and longer
 BIG_EDGE = 0.20
 UNDERDOG_P = 0.20
+ADJ_CAP = 0.08         # research adjustments are capped at +-8 points (SATURDAY.md step 3)
 # Experiment A, fixed in advance (review/EXPERIMENT_A.md): don't tune these on the results they are judged by
 BLEND_W = 0.5       # weight on the model, logit scale; the rest is the bookmaker's de-vigged probability
 BLEND_EV = 0.02     # blended value needed: break-even if a third of the model's disagreement is real
@@ -148,8 +153,20 @@ def price_block(con: sqlite3.Connection, projector: Projector, fx: sqlite3.Row, 
     win = con.execute("SELECT p_home, p_away FROM match_prices WHERE match_id = ?", (fx["match_id"],)).fetchone()
     p_win = None if win is None or side == "total" else win[0] if side == "home" else win[1]
     mu = priced.rating if side == "total" else priced.detail[f"{side}_mu"]
-    return dict(projected=mu, p_win=p_win,
-                rows=verdicts(rows, team_line=side != "total", underdog=p_win is not None and p_win < UNDERDOG_P))
+    underdog = p_win is not None and p_win < UNDERDOG_P
+    out = dict(projected=mu, p_win=p_win, rows=verdicts(rows, team_line=side != "total", underdog=underdog))
+    d6 = projector.price_derby(fx, book_weights(con, book)) if hasattr(projector, "price_derby") else None
+    if d6 is not None:
+        adj = []
+        for r in rows:
+            if side == "total":
+                p6, _ = side_probs(d6["pmf"], r["line"] / priced.scale, "over")
+            else:
+                p6, _ = poisson_tail(d6[f"{side}_mu"], r["line"], "over")
+            adj.append(dict(r, p_over=min(max(p6, r["p_over"] - ADJ_CAP), r["p_over"] + ADJ_CAP), p_6a=p6))
+        out["derby"] = dict(projected=d6["mean"] if side == "total" else d6[f"{side}_mu"],
+                            rows=verdicts(adj, team_line=side != "total", underdog=underdog))
+    return out
 
 
 def render_each(head: str, priced: dict) -> str:
@@ -191,6 +208,17 @@ def render(fx: sqlite3.Row, block: dict, priced: dict) -> str:
                    f"{r['verdict']} / {r['blend_verdict']}")
     pick = lambda key: next((f"over {r['line']:g} at {r['over']:.2f}" for r in priced["rows"] if r[key].startswith("BET")), "no bet")
     out.append(f"  => current rule: {pick('verdict')}   |   blend rule (experiment A): {pick('blend_verdict')}")
+    if priced.get("derby"):
+        d = priced["derby"]
+        out.append(f"  derby (6a, shadow; research-adjusted p capped at +-{ADJ_CAP:.0%}): projected {d['projected']:.2f}")
+        for r in d["rows"]:
+            value = f"{r['value_over']:+.0%}" if r["value_over"] is not None else "-"
+            needs = f"{r['min_over']:.2f}" if r["min_over"] else "-"
+            out.append(f"  {r['line']:>5g}  6a {r['p_6a']:.0%} -> adjusted {r['p_over']:.0%}  value {value:>5}  needs {needs:>5}  "
+                       f"{r['verdict']}")
+        best = next((f"over {r['line']:g} at {r['over']:.2f}, adjusted p {r['p_over']:.2f}" for r in d["rows"]
+                     if r["verdict"].startswith("BET")), "no bet")
+        out.append(f"  => with the derby adjustment: {best}")
     if any(r["margin_assumed"] for r in priced["rows"]):
         out.append(f"  * no under price: Sky Bet's margin assumed at {OVERROUND - 1:.1%}")
     return "\n".join(out)

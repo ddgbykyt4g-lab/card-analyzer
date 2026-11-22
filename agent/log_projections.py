@@ -22,9 +22,10 @@ from value_finder import ISO, Config, Projector  # noqa: E402
 MAX_K = 20
 FIELDS = ["logged_at", "match_id", "external_id", "league", "kickoff_utc", "home", "away", "referee",
           "ref_matches", "has_prices", "model_version", "book", "w_yellow", "w_second_yellow", "w_straight_red",
-          "mu_home", "mu_away", "mu_total", "distribution", "pmf", "rho"]
+          "mu_home", "mu_away", "mu_total", "distribution", "pmf", "rho", "mu_home_6a", "mu_away_6a", "pmf_6a"]
 # rho: the league's home/away card link (post-freeze test 2b, logged in shadow from 22 Nov 2026), so each-team
 # lines can be scored later with the dependence model as well as the live independent one. Blank before then.
+# *_6a: derbies only, the shadow projection with the derby flag (post-freeze test 6a), from 22 Nov 2026.
 
 
 def rows(con: sqlite3.Connection, now: datetime, days: float, book: str) -> list[dict]:
@@ -37,6 +38,7 @@ def rows(con: sqlite3.Connection, now: datetime, days: float, book: str) -> list
         if priced is None:
             continue
         d = priced.detail
+        d6 = projector.price_derby(fx, w)
         out.append(dict(
             logged_at=now.strftime(ISO), match_id=fx["match_id"], external_id=ext.get(fx["match_id"]) or "",
             league=fx["league"], kickoff_utc=fx["kickoff_utc"], home=fx["home"], away=fx["away"],
@@ -46,7 +48,9 @@ def rows(con: sqlite3.Connection, now: datetime, days: float, book: str) -> list
             w_yellow=w.yellow, w_second_yellow=w.second_yellow, w_straight_red=w.straight_red,
             mu_home=d.get("home_mu", ""), mu_away=d.get("away_mu", ""), mu_total=round(priced.rating, 3),
             distribution=d.get("distribution", ""),
-            pmf=" ".join(f"{priced.pmf(k):.5f}" for k in range(MAX_K + 1)), rho=d.get("rho", "")))
+            pmf=" ".join(f"{priced.pmf(k):.5f}" for k in range(MAX_K + 1)), rho=d.get("rho", ""),
+            mu_home_6a=round(d6["home_mu"], 3) if d6 else "", mu_away_6a=round(d6["away_mu"], 3) if d6 else "",
+            pmf_6a=" ".join(f"{d6['pmf'](k):.5f}" for k in range(MAX_K + 1)) if d6 else ""))
     return out
 
 

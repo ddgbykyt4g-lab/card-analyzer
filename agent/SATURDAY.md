@@ -49,6 +49,12 @@ to raise or lower fouling.
 Then, per match, either keep the model probability or adjust it by **at most ±8 percentage points**, citing
 the specific evidence. No evidence → no adjustment. Don't invent precision.
 
+**Derbies (post-freeze test 6a, from 22 Nov 2026):** for a match in `derbies.py`, use the derby figure that
+`check_prices.py` prints ("derby (6a, shadow)", already capped at ±8 points) as the derby part of the
+adjustment instead of judging it by hand: the backtest found derbies run 0.72 cards above the model (x1.22 per
+team). Other evidence (team news, referee) can still move it, within the same ±8-point total. Matches not in
+the list get no derby adjustment, whatever their reputation: the list is fixed so it can be tested.
+
 ## 5. Build the shortlist
 There is no live odds feed yet, so value is expressed as **the minimum price worth taking**.
 - Consider match totals (`lines`) and team lines (`team_lines`) from `/tmp/sheet.json`.

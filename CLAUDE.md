@@ -103,6 +103,13 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   the live (independent) one for `each` blocks; `score_projections.py` reports the confirmation read (pass:
   300+ matches with rho, joint log-loss gain above 0, each team 2+ gap to actual narrower). Live prices,
   `--log-bet` and settlement are unchanged until it passes and the user agrees.
+- **Derby flag (post-freeze test 6a, 22 Nov 2026; in shadow):** under the all-match bar (+0.0018) because derbies
+  are 4% of matches, but derbies run 0.72 cards above the model (CI +0.40 to +1.04) and the flag closes it
+  (x1.22 per team). The user left it to judgement: shadow, used now only as the derby part of the Saturday
+  research adjustment (capped at ±8 points). Pairs are fixed in `derbies.py`; `GLMConfig(derby=True)` and
+  `Projector.price_derby` give the shadow projection; `data/projections.csv` logs `mu_home_6a`, `mu_away_6a`,
+  `pmf_6a` for derbies; `check_prices.py` prints the derby-adjusted line; `score_projections.py` reports the
+  confirmation read (60+ derbies, log-loss gain above 0, smaller gap to actual: about the end of the season).
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,

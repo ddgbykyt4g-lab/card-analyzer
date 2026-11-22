@@ -50,6 +50,9 @@ class GLMConfig:
     # prior 16-64 all equivalent. A referee foul-rate feature was tried and hurt (card rate covers it).
     fouls: bool = True
     fouls_prior: float = 32.0  # matches' worth of league average each team's foul rate is shrunk toward
+    # Derby flag (post-freeze test 6a, derbies.py). Off live: logged in shadow from 22 Nov 2026 until its
+    # confirmation read (agent/POST_FREEZE.md). Walk-forward 2024-27: derbies under-projected 0.72 cards; x1.22.
+    derby: bool = False
 
 
 # ───────────────────────────── Data ─────────────────────────────
@@ -57,7 +60,8 @@ class Data:
     """Two rows per match (home team, away team) with index columns for the design matrix."""
 
     def __init__(self, con: sqlite3.Connection, include_scheduled: bool = False, rest: bool = False,
-                 weights=W, fouls: bool = False, fouls_prior: float = 32.0, half_life: float = 120.0):
+                 weights=W, fouls: bool = False, fouls_prior: float = 32.0, half_life: float = 120.0,
+                 derby: bool = False):
         status = "('finished','scheduled')" if include_scheduled else "('finished')"
         rows = con.execute(f"""
             SELECT m.match_id, m.kickoff_utc, m.status, s.league_id, s.label, l.code,
@@ -90,7 +94,7 @@ class Data:
         # parameter layout: [leagues | home | features | disc teams | prov teams | refs]
         self.o_home = len(leagues)
         self.o_feat = self.o_home + 1
-        self.n_feat = BASE_FEAT + (REST_FEAT if rest else 0) + (FOUL_FEAT if fouls else 0)
+        self.n_feat = BASE_FEAT + (REST_FEAT if rest else 0) + (FOUL_FEAT if fouls else 0) + int(derby)
         self.o_disc = self.o_feat + self.n_feat
         self.o_prov = self.o_disc + len(teams)
         self.o_ref = self.o_prov + len(teams)
@@ -115,6 +119,11 @@ class Data:
             self.feat = np.column_stack([self.feat, rest_features(con, rows)])
         if fouls:
             self.feat = np.column_stack([self.feat, foul_features(con, self.match_id, fouls_prior, half_life)])
+        if derby:
+            from derbies import derby_matches
+            dm = derby_matches(con)
+            self.is_derby = np.array([int(m) in dm for m in self.match_id])
+            self.feat = np.column_stack([self.feat, np.repeat(self.is_derby.astype(float), 2)])
 
         def cards(y, y2, r):
             return weights.yellow * (y or 0) + weights.second_yellow * (y2 or 0) + weights.straight_red * (r or 0)
@@ -320,7 +329,7 @@ class GLMPredictor:
 
     def __init__(self, con: sqlite3.Connection, asof: str, cfg: GLMConfig = GLMConfig(), weights=W):
         self.d = Data(con, include_scheduled=True, rest=cfg.rest, weights=weights, fouls=cfg.fouls,
-                      fouls_prior=cfg.fouls_prior, half_life=cfg.half_life_days)
+                      fouls_prior=cfg.fouls_prior, half_life=cfg.half_life_days, derby=cfg.derby)
         day = int(np.datetime64(asof[:10], "D").astype(int))
         train = np.where(self.d.finished & (self.d.day < day))[0]
         self.model = CardGLM(self.d, cfg).fit(train, day)

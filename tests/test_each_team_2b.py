@@ -66,7 +66,7 @@ def test_checker_keeps_the_live_verdict_and_shows_2b_beside_it(monkeypatch):
 
 def test_old_projection_log_gets_the_rho_column(tmp_path):
     path = tmp_path / "p.csv"
-    old = FIELDS[:-1]
+    old = FIELDS[:FIELDS.index("rho")]
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, old)
         w.writeheader()

@@ -7,7 +7,7 @@ stored in that row (Sky Bet: yellow 1, second yellow 1, straight red 1). Reports
 2.5-6.5, RMSE and over-rate calibration, per model version, next to the walk-forward backtest figures,
 then projected against actual cards by league and by projected level (where the model runs high or low),
 and, for rows logged with the league's team link (rho, from 22 Nov 2026), the each-team confirmation read of
-post-freeze test 2b.
+post-freeze test 2b; for derbies logged with the flag (from 22 Nov 2026), test 6a's.
 Usage: python agent/score_projections.py [cards.db] [data/projections.csv]
 """
 import csv
@@ -93,6 +93,15 @@ def score(db: str, path: str) -> dict[str, dict]:
             acc[key]["n"] += 1
             acc[key]["mu"] += mu
             acc[key]["y"] += actual
+        if r.get("pmf_6a"):
+            d6 = acc["derby 6a"]
+            pmf6 = [float(x) for x in r["pmf_6a"].split()]
+            d6["n"] += 1
+            d6["ll_cur"] += math.log(max(p_k, 1e-12))
+            d6["ll_6a"] += math.log(max(pmf6[k] if k < len(pmf6) else max(1 - sum(pmf6), 1e-6), 1e-12))
+            d6["mu_cur"] += mu
+            d6["mu_6a"] += (float(r["mu_home_6a"]) + float(r["mu_away_6a"]))
+            d6["y"] += actual
         if r.get("rho") not in (None, "") and r.get("mu_home") and mid in sides:
             each_team(acc["each 2b"], r, *sides[mid])
         for key in (r["model_version"], "all"):
@@ -139,13 +148,25 @@ def report_each(a: dict) -> list[str]:
 
 
 CONFIRM_N = 300
+DERBY_N = 60
+
+
+def report_derby(a: dict) -> list[str]:
+    n = a["n"]
+    gain = (a["ll_6a"] - a["ll_cur"]) / n
+    gap_cur, gap_6a = (a["y"] - a["mu_cur"]) / n, (a["y"] - a["mu_6a"]) / n
+    return [f"Derbies, live v 6a shadow (confirmation read, {n:.0f} derbies logged with the flag):",
+            f"  log-loss gain {gain:+.4f}; projected live {a['mu_cur'] / n:.2f}, 6a {a['mu_6a'] / n:.2f}, actual {a['y'] / n:.2f}",
+            f"  pass mark (agent/POST_FREEZE.md): {DERBY_N}+ derbies, gain above 0 and a smaller gap to actual: "
+            + ("not enough derbies yet" if n < DERBY_N else
+               "PASS" if gain > 0 and abs(gap_6a) < abs(gap_cur) else "FAIL")]
 
 
 def report(acc: dict[str, dict]) -> str:
     if not acc:
         return "No scored matches yet: the log needs finished matches that were projected before kickoff."
     out = []
-    for key in sorted((k for k in acc if not k.startswith(("league ", "level ", "each "))), key=lambda k: (k == "all", k)):
+    for key in sorted((k for k in acc if not k.startswith(("league ", "level ", "each ", "derby "))), key=lambda k: (k == "all", k)):
         a, n = acc[key], acc[key]["n"]
         out += [f"{key}: {n:.0f} matches",
                 f"  log-loss {a['ll'] / n:+.3f} (backtest {BACKTEST['log-loss']:+.3f})   "
@@ -162,6 +183,8 @@ def report(acc: dict[str, dict]) -> str:
             out.append(f"  {key[len(prefix):]:22} {n:4.0f}  {a['mu'] / n:.2f}  {a['y'] / n:.2f}  {(a['y'] - a['mu']) / n:+.2f}")
     if acc.get("each 2b", {}).get("n"):
         out += report_each(acc["each 2b"])
+    if acc.get("derby 6a", {}).get("n"):
+        out += report_derby(acc["derby 6a"])
     out.append("Under a few hundred matches these figures are noisy; compare with the backtest, not with zero.")
     return "\n".join(out)
 
