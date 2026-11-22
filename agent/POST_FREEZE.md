@@ -17,6 +17,12 @@ a confirmation read on fresh matches.
   in the sensitivity grid reaches the bar (best +0.0023). The walk-forward 2026-27 league biases are small
   (EPL +0.26, La Liga +0.12, Serie A -0.31); the live log's larger gaps (La Liga +0.58, EPL +0.53 on 50
   matches each, standard error about 0.28) are mostly noise.
+- **Test 1, curved underdog term: FAIL** (22 Nov, `review/test1_curved_underdog.py`). gap x |gap| added to
+  the 1X2 terms: match totals -0.0000 a match on 2024-27 (CI -0.0001 to +0.0000), team rows -0.0004; gap cubed
+  the same. Heavy underdogs (own win probability under 20%, 1,619 team rows) are not over-projected: actual
+  minus projected -0.03 cards, the same as every other band (-0.03 to -0.07). The shortlist caution on heavy
+  underdogs' long team lines has no calibration basis in the backtest; whether to keep it is a rule question
+  for the user, not a model change.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
