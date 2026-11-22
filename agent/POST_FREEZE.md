@@ -33,6 +33,8 @@ a confirmation read on fresh matches.
   cautions on long team lines, and says each-team prices are conservative. Candidate for a new, pre-specified
   test 2b: Poisson marginals with positive dependence (e.g. a common shock or a copula), which A could not give
   without widening the marginals.
+  **Parked (22 Nov):** 1 of 16 real bets was each-team and no each-team prices were sent this month; A shows
+  the dependence moves joint log-loss by under a tenth of the bar. Revisit only if each-team bets become common.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
