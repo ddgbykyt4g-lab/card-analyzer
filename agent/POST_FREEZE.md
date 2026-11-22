@@ -32,6 +32,11 @@ a confirmation read on fresh matches.
   Not a model change. Proposed for the user: from the final 8 rounds (about April), a shortlist caution against
   overs where a team is mathematically dead, checked on 2026-27's final rounds as a fresh test (fixed now:
   dead team rows under-run the live projection, mean below 0 with a CI excluding 0).
+- **Test 5, referee card-per-foul conversion: FAIL** (22 Nov, `review/test5_ref_conversion.py`, form fixed
+  before running: referee cards per foul from earlier matches, shrunk by 20 matches toward the league, as a log
+  ratio, times the teams' foul terms). -0.0003 a match on 2024-27 (CI -0.0008 to +0.0003), no season above
+  +0.0001. Referees differ little in conversion once shrunk (sd 0.07 on the log scale) and the referee's flat
+  card level already carries it.
 - **Test 2, team-level dispersion: FAIL** (22 Nov, `review/test2_team_dispersion.py`). A, a shared gamma
   match effect (negative multinomial, shape = the match-total NB size): joint (home, away) log-loss +0.0004 a
   match on 2024-27 (CI -0.0006 to +0.0015), team rows -0.0017. B, NB per team: identical to Poisson, because
