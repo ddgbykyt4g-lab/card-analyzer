@@ -54,7 +54,11 @@ LEAGUES = {  # keys match leagues.code in the schema seed
     "BUNDES": dict(fd_code="D1", espn_slug="ger.1", country="Germany"),
     "LIGUE1": dict(fd_code="F1", espn_slug="fra.1", country="France"),
     "SPL": dict(fd_code="SC0", espn_slug="sco.1", country="Scotland"),
+    "EFL1": dict(fd_code="E1", espn_slug="eng.2", country="England"),  # Championship
 }
+# Shadow leagues: collected only when named with --leagues, into their own database (efl.db), so the live
+# model in cards.db never sees them. The Championship is being backtested and logged before any betting.
+SHADOW = {"EFL1"}
 FD_BASE = "https://www.football-data.co.uk"
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 
@@ -1346,7 +1350,8 @@ def main() -> None:
     ap.add_argument("--no-espn", action="store_true", help="skip all ESPN steps (referees, cup/European fixtures)")
     ap.add_argument("--no-cups", action="store_true", help="skip the cup/European fixture step")
     ap.add_argument("--days", type=int, default=10, help="how far ahead to load ESPN league fixtures")
-    ap.add_argument("--leagues", nargs="+", default=list(LEAGUES), choices=list(LEAGUES))
+    ap.add_argument("--leagues", nargs="+", default=[c for c in LEAGUES if c not in SHADOW], choices=list(LEAGUES),
+                    help="default: every league except the shadow ones (EFL1), which need their own --db")
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
     ap.add_argument("--referees-only", action="store_true",
                     help="only load appointed referees for upcoming fixtures (about a minute)")

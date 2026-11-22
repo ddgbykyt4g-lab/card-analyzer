@@ -13,43 +13,18 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from wf import (OUT, ROOT, SKY, TUNED, UNTUNED, boot_ci, cached_walk, connect, logloss_total, p_over_total,  # noqa: E402
-                pois_over, total_pmf, walk)
+from wf import (LINES, OUT, ROOT, SKY, TUNED, UNTUNED, boot_ci, cached_walk, climatology, connect, logloss_total,  # noqa: E402
+                metrics, p_over_total, pois_over, total_pmf, walk)
 
 from glm_model import CardGLM, Data, GLMConfig  # noqa: E402
 from score_projections import latest_before_kickoff  # noqa: E402
 
 DB = sys.argv[1] if len(sys.argv) > 1 else "cards.db"
 LOG = sys.argv[2] if len(sys.argv) > 2 else f"{ROOT}/data/projections.csv"
-LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
 
 
 def section(title: str) -> None:
     print(f"\n=== {title} ===")
-
-
-def metrics(rows: list[dict]) -> dict:
-    y = np.array([r["y_h"] + r["y_a"] for r in rows])
-    mu = np.array([r["mu_h"] + r["mu_a"] for r in rows])
-    brier = np.mean([(p_over_total(r, L) - (r["y_h"] + r["y_a"] > L)) ** 2 for r in rows for L in LINES])
-    return dict(n=len(rows), ll=logloss_total(rows), rmse=float(np.sqrt(np.mean((y - mu) ** 2))), brier=float(brier),
-                mu=float(mu.mean()), y=float(y.mean()))
-
-
-def climatology(rows: list[dict], all_rows: list[dict], window: int = 380) -> list[dict]:
-    """Baseline with no team, referee or odds information: each league's mean total over its previous
-    `window` matches, split evenly between the teams, with the same dispersion the model used."""
-    hist: dict[str, list[tuple[int, float]]] = {}
-    for r in sorted(all_rows, key=lambda r: r["day"]):
-        hist.setdefault(r["league"], []).append((r["day"], r["y_h"] + r["y_a"]))
-    out = []
-    for r in rows:
-        past = [t for d, t in hist[r["league"]] if d < r["week"] * 7 - 3][-window:]
-        if len(past) < 50:
-            continue
-        m = float(np.mean(past))
-        out.append(dict(r, mu_h=m / 2, mu_a=m / 2))
-    return out
 
 
 def reliability(p: np.ndarray, hit: np.ndarray, bins: int = 10) -> list[tuple[float, float, int]]:
