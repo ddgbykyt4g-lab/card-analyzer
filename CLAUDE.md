@@ -92,11 +92,17 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   every push that touches Python. Add a test with any change to parsing, pricing or settlement.
 
 ## Model
-- **Model freeze (from 2026-10-06):** no model changes (features, priors, half-life, dispersion, units) until
-  `data/projections.csv` has a few hundred scored matches (about 300) and glm-v4 has been judged on them with
-  `agent/score_projections.py`. Bug fixes in data collection are fine; anything that changes projections waits.
-  Candidate changes and the evidence for them are queued in `agent/POST_FREEZE.md`.
-  `python agent/score_projections.py` also shows projected against actual cards by league and by projected level.
+- **Model freeze lifted 22 Nov 2026** (it ran from 2026-10-06): glm-v4 judged on 283 scored matches, live
+  log-loss equal to the backtest's. Candidate changes run in order from `agent/POST_FREEZE.md`, each walk-forward
+  on 2024-27 against the current model; keep one only at +0.004 log-loss a match or better, logged alongside
+  the live model until a confirmation read. Results are recorded there.
+- **Each-team link (post-freeze test 2b, passed 22 Nov 2026; in shadow):** home and away cards move together
+  (residual correlation about +0.17). `glm_model.team_link` estimates each league's link (rho) at fit time,
+  `each_team_over` prices "each team N+" with a common-shock bivariate Poisson (each team still Poisson(mu)).
+  Logged as the `rho` column of `data/projections.csv`; `check_prices.py` shows the 2b price and verdict beside
+  the live (independent) one for `each` blocks; `score_projections.py` reports the confirmation read (pass:
+  300+ matches with rho, joint log-loss gain above 0, each team 2+ gap to actual narrower). Live prices,
+  `--log-bet` and settlement are unchanged until it passes and the user agrees.
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,
@@ -150,7 +156,8 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
 - Don't lower the per-host throttles in `HOST_INTERVAL`.
 - Fix unmatched team or referee names by inserting rows into `name_aliases`, not by editing code.
 - `odds_snapshots`, `bookmakers` and `markets` have no automatic collector; ask before adding an odds source.
-  Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` and loaded with
+  Prices the user sends as screenshots are transcribed into `data/prices/<YYYY-MM>.txt` (blocks `total`, `home`,
+  `away`, or `each` for "each team N+" screens, rows like `2+ 15/8`) and loaded with
   `python agent/log_prices.py --db cards.db data/prices/<file>` (UK times; re-running is harmless).
 
 ## Reporting

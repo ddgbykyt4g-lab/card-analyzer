@@ -96,6 +96,11 @@ Write `reports/<YYYY-MM-DD>.md` containing:
   to screenshot that line's Sky Bet screen in the 30 minutes before kickoff. It is the closing price the
   experiment measures closing-line value against (`experiment_a.py` `sky_clv`).
 
+- **Each-team screens (post-freeze test 2b, in shadow from 22 Nov 2026):** for shortlisted matches, ask the
+  user to screenshot Sky Bet's "each team to receive N+ cards" tab as well, transcribed as an `each` block in
+  `data/prices/<YYYY-MM>.txt`. `check_prices.py` shows the live verdict and, beside it, the 2b price and
+  verdict. Recommend on the live verdict only until 2b's confirmation read passes.
+
 Then commit `cards.db` and the report and push:
 ```
 git add cards.db reports/ && git commit -m "Saturday shortlist <date>" && git fetch origin main && git rebase origin/main && git push origin HEAD:main

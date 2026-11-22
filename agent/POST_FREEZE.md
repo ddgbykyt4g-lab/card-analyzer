@@ -1,9 +1,52 @@
 # Post-freeze test list
 
-The model is frozen (glm-v4) until `data/projections.csv` has about 300 scored matches (early December 2026)
-and glm-v4 has been judged on them with `agent/score_projections.py`. Nothing here changes projections before
-then. After that, test each item in order with `python glm_model.py --db cards.db --backtest` and keep it only
-if it wins on seasons it wasn't tuned on (CLAUDE.md).
+**Freeze lifted 22 Nov 2026 (user's decision).** glm-v4 judged on 283 scored matches of `data/projections.csv`:
+live log-loss -2.112 against -2.111 in the backtest for the same matches, RMSE 2.03 against 2.05, so the live
+model performs as backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
+were not yet on football-data; re-score when they are. glm-v4.1 stays live while the tests below run.
+
+Each test: walk-forward on 2024-27 (seasons not tuned on), against the current model on the same matches.
+Pass bar (user, 11 Nov): +0.004 log-loss per match; a pass is logged alongside glm-v4.1, not swapped in, until
+a confirmation read on fresh matches.
+
+## Results
+
+- **Test 3, fast league level: FAIL** (22 Nov, `review/test3_league_level.py`). A 30-day, 30-match-prior
+  league correction on top of the fit: +0.0017 a match on 2024-27 (95% CI -0.0000 to +0.0035), positive in
+  2024-25 only (+0.0052), slightly negative in 2025-26 and 2026-27; +0.0037 on the tuned seasons. No setting
+  in the sensitivity grid reaches the bar (best +0.0023). The walk-forward 2026-27 league biases are small
+  (EPL +0.26, La Liga +0.12, Serie A -0.31); the live log's larger gaps (La Liga +0.58, EPL +0.53 on 50
+  matches each, standard error about 0.28) are mostly noise.
+- **Test 1, curved underdog term: FAIL** (22 Nov, `review/test1_curved_underdog.py`). gap x |gap| added to
+  the 1X2 terms: match totals -0.0000 a match on 2024-27 (CI -0.0001 to +0.0000), team rows -0.0004; gap cubed
+  the same. Heavy underdogs (own win probability under 20%, 1,619 team rows) are not over-projected: actual
+  minus projected -0.03 cards, the same as every other band (-0.03 to -0.07). The shortlist caution on heavy
+  underdogs' long team lines has no calibration basis in the backtest; whether to keep it is a rule question
+  for the user, not a model change.
+- **Test 2, team-level dispersion: FAIL** (22 Nov, `review/test2_team_dispersion.py`). A, a shared gamma
+  match effect (negative multinomial, shape = the match-total NB size): joint (home, away) log-loss +0.0004 a
+  match on 2024-27 (CI -0.0006 to +0.0015), team rows -0.0017. B, NB per team: identical to Poisson, because
+  team rows show no overdispersion around the model in any league (method of moments finds none). What the
+  calibration does show: home and away residuals correlate +0.17, so the each-team market is under-projected
+  (each team 2+: 0.363 projected v 0.396 actual; 1+: 0.745 v 0.776; top fifth of each-team 2+: 0.504 v 0.539),
+  while long single-team lines are over-projected (one team 4+: 0.162 v 0.141). That supports the shortlist
+  cautions on long team lines, and says each-team prices are conservative. Candidate for a new, pre-specified
+  test 2b: Poisson marginals with positive dependence (e.g. a common shock or a copula), which A could not give
+  without widening the marginals.
+  Parked, then reopened on the user's point that few each-team bets reflects where we looked, not the market.
+- **Test 2b, common-shock bivariate Poisson: PASS** (22 Nov, `review/test2b_each_team.py`, form and settings
+  fixed before running). Each team stays Poisson(mu); a shared Poisson part l3 = rho x sqrt(mu_h x mu_a) with
+  rho per league from the training residuals (2024-27 means: EPL 0.19, La Liga 0.17, Bundesliga 0.15, SPL 0.09,
+  Ligue 1 0.08, Serie A 0.06). Joint (home, away) log-loss +0.0127 a match on 2024-27 (CI +0.0090 to +0.0165),
+  positive every season (+0.0159, +0.0106, +0.0090), +0.0129 on the tuned seasons. Each team 2+ gap to actual
+  +0.033 -> +0.015 (halved, the second check); each team 3+ 0.118 -> 0.136 v 0.131 actual; single-team lines
+  and match totals unchanged by construction. Each team 2+ probability rises 1.8 points on average (0.6-3.0).
+  Per the rules: log alongside glm-v4.1, not swapped in, until a confirmation read on fresh matches.
+  **In shadow from 22 Nov 2026:** rho logged per match in `data/projections.csv`; `check_prices.py` shows the 2b
+  each-team price and verdict beside the live one. **Confirmation read, fixed now:** on 300+ finished matches
+  logged with rho, `score_projections.py` must show a joint (home, away) log-loss gain above 0 and an each
+  team 2+ gap to actual narrower than the live pricing's. At current fixture counts that is about 6 weeks
+  (mid-January). Passing, it goes live for each-team prices only, with the user's agreement.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.

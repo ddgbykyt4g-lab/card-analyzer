@@ -22,7 +22,9 @@ from value_finder import ISO, Config, Projector  # noqa: E402
 MAX_K = 20
 FIELDS = ["logged_at", "match_id", "external_id", "league", "kickoff_utc", "home", "away", "referee",
           "ref_matches", "has_prices", "model_version", "book", "w_yellow", "w_second_yellow", "w_straight_red",
-          "mu_home", "mu_away", "mu_total", "distribution", "pmf"]
+          "mu_home", "mu_away", "mu_total", "distribution", "pmf", "rho"]
+# rho: the league's home/away card link (post-freeze test 2b, logged in shadow from 22 Nov 2026), so each-team
+# lines can be scored later with the dependence model as well as the live independent one. Blank before then.
 
 
 def rows(con: sqlite3.Connection, now: datetime, days: float, book: str) -> list[dict]:
@@ -44,8 +46,23 @@ def rows(con: sqlite3.Connection, now: datetime, days: float, book: str) -> list
             w_yellow=w.yellow, w_second_yellow=w.second_yellow, w_straight_red=w.straight_red,
             mu_home=d.get("home_mu", ""), mu_away=d.get("away_mu", ""), mu_total=round(priced.rating, 3),
             distribution=d.get("distribution", ""),
-            pmf=" ".join(f"{priced.pmf(k):.5f}" for k in range(MAX_K + 1))))
+            pmf=" ".join(f"{priced.pmf(k):.5f}" for k in range(MAX_K + 1)), rho=d.get("rho", "")))
     return out
+
+
+def upgrade_header(path: str) -> None:
+    """A log written before a column was added gets the new header, its old rows that column blank."""
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames == FIELDS:
+            return
+        old = list(reader)
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, FIELDS)
+        w.writeheader()
+        w.writerows({k: r.get(k, "") or "" for k in FIELDS} for r in old)
 
 
 def main() -> int:
@@ -62,6 +79,7 @@ def main() -> int:
     finally:
         db.con.close()
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    upgrade_header(args.out)
     fresh = not os.path.exists(args.out) or os.path.getsize(args.out) == 0
     with open(args.out, "a", newline="") as f:
         w = csv.DictWriter(f, FIELDS)

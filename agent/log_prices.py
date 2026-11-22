@@ -3,9 +3,10 @@
 compared with the market on every logged match, bet on or not.
 
 Input file, one block per screen:
-    @ 2026-10-24 10:28 | Valencia v Villarreal | total        (UK time | fixture | total, home or away)
+    @ 2026-10-24 10:28 | Valencia v Villarreal | total        (UK time | fixture | total, home, away or each)
     3.5 1/8 4/1          line, over odds, under odds ("-" where a price is missing)
     4+ 2/5               "4 or more cards" screens: over-only, stored as line 3.5
+    2+ 15/8              in an "each" block: each team 2 or more cards (line 1.5)
 Odds are fractional or decimal. Re-running a file is harmless (duplicates are ignored).
 A block whose match can't be found within 7 days of its time, or that is timed after kickoff, is skipped
 with a SKIPPED line; the rest of the file is still loaded.
@@ -27,7 +28,7 @@ from value_finder import ISO  # noqa: E402
 UK = ZoneInfo("Europe/London")
 DAYS_AHEAD = 7  # how far after the screenshot the match may be (check_prices and experiment A's pick: 7)
 HEADER = re.compile(r"^@\s*(?P<when>\d{4}-\d\d-\d\d \d\d:\d\d)\s*\|\s*(?P<home>.+?)\s+v\s+(?P<away>.+?)\s*\|\s*"
-                    r"(?P<market>total|home|away)\s*$", re.I)
+                    r"(?P<market>total|home|away|each)\s*$", re.I)
 
 
 def parse_price(text: str) -> float | None:
