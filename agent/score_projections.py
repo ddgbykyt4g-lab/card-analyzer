@@ -117,28 +117,52 @@ def each_team(a: dict, r: dict, h: int, aw: int) -> None:
     """Post-freeze test 2b's confirmation read: each-team lines, live (independent) against the shadow
     dependence model, on matches logged with the league's team link. Sky Bet units (all cards count 1)."""
     mh, ma, rho = float(r["mu_home"]), float(r["mu_away"]), float(r["rho"])
+    cur = math.log(max(joint_prob(mh, ma, 0.0, h, aw), 1e-12))
+    new = math.log(max(joint_prob(mh, ma, rho, h, aw), 1e-12))
     a["n"] += 1
-    a["ll_cur"] += math.log(max(joint_prob(mh, ma, 0.0, h, aw), 1e-12))
-    a["ll_2b"] += math.log(max(joint_prob(mh, ma, rho, h, aw), 1e-12))
+    a["ll_cur"] += cur
+    a["ll_2b"] += new
+    a["gain_sq"] += (new - cur) ** 2
     for k in EACH_LINES:
         a[f"cur{k}"] += each_team_over(mh, ma, 0.0, k - 0.5)
         a[f"2b{k}"] += each_team_over(mh, ma, rho, k - 0.5)
         a[f"hit{k}"] += h >= k and aw >= k
 
 
-def report_each(a: dict) -> list[str]:
+def each_verdict(a: dict) -> tuple[str, float, float]:
+    """(verdict, mean joint log-loss gain, lower end of its 95% interval). Pass mark fixed on 22 Nov 2026, before
+    any match was logged with the link: CONFIRM_N+ matches, the interval above 0, and the each team 2+ gap to
+    actual narrower than the live pricing's. 'Gain above 0' alone would pass about half the time with no effect.
+    At CONFIRM_N a positive gain still inside the noise gets one more look, at FINAL_N (about 60% power at 500 for
+    the backtest's gain, about 90% at 1000; two looks put a false pass at about 8% instead of 5%)."""
     n = a["n"]
     gain = (a["ll_2b"] - a["ll_cur"]) / n
+    var = max(a["gain_sq"] / n - gain ** 2, 0.0) * n / (n - 1) if n > 1 else float("inf")
+    lower = gain - 1.96 * math.sqrt(var / n)
+    if n < CONFIRM_N:
+        return "not enough matches yet", gain, lower
+    narrower = abs(a["hit2"] - a["2b2"]) < abs(a["hit2"] - a["cur2"])
+    if lower > 0 and narrower:
+        return "PASS", gain, lower
+    if n < FINAL_N and gain > 0 and narrower:  # promising but within noise: one more look, fixed in advance
+        return f"not yet: positive but within noise, final read at {FINAL_N}", gain, lower
+    return "FAIL", gain, lower
+
+
+def report_each(a: dict) -> list[str]:
+    n = a["n"]
+    verdict, gain, lower = each_verdict(a)
     return [f"Each team, live v 2b shadow (confirmation read, {n:.0f} matches logged with the team link):",
-            f"  joint log-loss: live {a['ll_cur'] / n:+.4f}, 2b {a['ll_2b'] / n:+.4f}, gain {gain:+.4f}",
+            f"  joint log-loss: live {a['ll_cur'] / n:+.4f}, 2b {a['ll_2b'] / n:+.4f}, gain {gain:+.4f} "
+            f"(95% interval lower end {lower:+.4f})",
             "  each team N+, projected live / 2b / actual: "
             + "  ".join(f"{k}+ {a[f'cur{k}'] / n:.0%}/{a[f'2b{k}'] / n:.0%}/{a[f'hit{k}'] / n:.0%}" for k in EACH_LINES),
-            f"  pass mark (agent/POST_FREEZE.md): {CONFIRM_N}+ matches, gain above 0 and the 2+ gap to actual narrower: "
-            + ("not enough matches yet" if n < CONFIRM_N else
-               "PASS" if gain > 0 and abs(a["hit2"] - a["2b2"]) < abs(a["hit2"] - a["cur2"]) else "FAIL")]
+            f"  pass mark (agent/POST_FREEZE.md): {CONFIRM_N}+ matches (final look {FINAL_N}), gain's 95% interval "
+            f"above 0 and the 2+ gap to actual narrower: {verdict}"]
 
 
-CONFIRM_N = 300
+CONFIRM_N = 500  # about 10 weeks of fixtures; at 300 the interval is about as wide as the expected gain
+FINAL_N = 1000   # the one further look, about the end of the season
 
 
 def report(acc: dict[str, dict]) -> str:
