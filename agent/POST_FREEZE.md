@@ -1,8 +1,9 @@
 # Post-freeze test list
 
 **Freeze lifted 22 Nov 2026 (user's decision).** glm-v4 judged on 283 scored matches of `data/projections.csv`:
-live log-loss -2.112 against -2.111 in the backtest for the same matches, RMSE 2.03 against 2.05, so the live
-model performs as backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
+live log-loss -2.112 against -2.111 for the backtest's 2024-27 average (a different set of matches, so a
+level check, not a match-by-match comparison), RMSE 2.03 against 2.05, so the live model performs about as
+backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
 were not yet on football-data; re-score when they are. glm-v4.1 stays live while the tests below run.
 
 Each test: walk-forward on 2024-27 (seasons not tuned on), against the current model on the same matches.
