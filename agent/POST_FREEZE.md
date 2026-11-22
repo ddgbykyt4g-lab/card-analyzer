@@ -23,6 +23,16 @@ a confirmation read on fresh matches.
   minus projected -0.03 cards, the same as every other band (-0.03 to -0.07). The shortlist caution on heavy
   underdogs' long team lines has no calibration basis in the backtest; whether to keep it is a rule question
   for the user, not a model change.
+- **Test 2, team-level dispersion: FAIL** (22 Nov, `review/test2_team_dispersion.py`). A, a shared gamma
+  match effect (negative multinomial, shape = the match-total NB size): joint (home, away) log-loss +0.0004 a
+  match on 2024-27 (CI -0.0006 to +0.0015), team rows -0.0017. B, NB per team: identical to Poisson, because
+  team rows show no overdispersion around the model in any league (method of moments finds none). What the
+  calibration does show: home and away residuals correlate +0.17, so the each-team market is under-projected
+  (each team 2+: 0.363 projected v 0.396 actual; 1+: 0.745 v 0.776; top fifth of each-team 2+: 0.504 v 0.539),
+  while long single-team lines are over-projected (one team 4+: 0.162 v 0.141). That supports the shortlist
+  cautions on long team lines, and says each-team prices are conservative. Candidate for a new, pre-specified
+  test 2b: Poisson marginals with positive dependence (e.g. a common shock or a copula), which A could not give
+  without widening the marginals.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
