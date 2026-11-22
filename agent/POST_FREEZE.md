@@ -23,6 +23,20 @@ a confirmation read on fresh matches.
   minus projected -0.03 cards, the same as every other band (-0.03 to -0.07). The shortlist caution on heavy
   underdogs' long team lines has no calibration basis in the backtest; whether to keep it is a rule question
   for the user, not a model change.
+- **Test 6b, match stakes: FAIL** (22 Nov, `review/test6b_stakes.py`, form fixed before running: late = 8 or
+  fewer games left; fight = late and within 3 points of the title, Europe or relegation line; dead = late and
+  unable to cross any line). All matches +0.0017 a match on 2024-27 (CI -0.0002 to +0.0035). Late matches only
+  (868, from 2024-25 and 2025-26): +0.0094 (CI +0.0010 to +0.0178), but +0.0154 then +0.0035, so not stable.
+  The usable finding: in the final 8 rounds the model over-projects teams with nothing to play for, **-0.31
+  cards per team** (396 team rows, CI -0.44 to -0.19), while teams in a fight are about right (-0.03).
+  Not a model change. Proposed for the user: from the final 8 rounds (about April), a shortlist caution against
+  overs where a team is mathematically dead, checked on 2026-27's final rounds as a fresh test (fixed now:
+  dead team rows under-run the live projection, mean below 0 with a CI excluding 0).
+- **Test 5, referee card-per-foul conversion: FAIL** (22 Nov, `review/test5_ref_conversion.py`, form fixed
+  before running: referee cards per foul from earlier matches, shrunk by 20 matches toward the league, as a log
+  ratio, times the teams' foul terms). -0.0003 a match on 2024-27 (CI -0.0008 to +0.0003), no season above
+  +0.0001. Referees differ little in conversion once shrunk (sd 0.07 on the log scale) and the referee's flat
+  card level already carries it.
 - **Test 2, team-level dispersion: FAIL** (22 Nov, `review/test2_team_dispersion.py`). A, a shared gamma
   match effect (negative multinomial, shape = the match-total NB size): joint (home, away) log-loss +0.0004 a
   match on 2024-27 (CI -0.0006 to +0.0015), team rows -0.0017. B, NB per team: identical to Poisson, because

@@ -108,7 +108,11 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,
   pre-match, shrunk toward the league; `--no-fouls` to drop). Needs the `match_prices` table (migration 001).
 - Tried and rejected out-of-sample: rest days, referee foul rate, interaction terms (league x home,
-  league x odds, referee x venue, referee x closeness, team x venue, provocation x venue).
+  league x odds, referee x venue, referee x closeness, team x venue, provocation x venue); and after the freeze
+  (22 Nov 2026, `agent/POST_FREEZE.md`, scripts in `review/test*.py`): a fast league level (test 3), a curved
+  underdog term (1), team-level overdispersion (2), referee card-per-foul conversion x team fouls (5), match
+  stakes as features (6b; dead rubbers run low, a possible April caution). The derby flag (6a) is parked on the
+  `test6-derby` branch: derbies are judged on the day.
 - `--model pcr`: the original three-way average of home team, away team and referee.
 - Backtests: `python glm_model.py --db cards.db --backtest` (GLM vs PCR, walk-forward) and
   `python backtest.py --db cards.db` (PCR diagnostics). Keep a change only if it wins on seasons it
