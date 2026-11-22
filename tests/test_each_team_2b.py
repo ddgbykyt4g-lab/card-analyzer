@@ -14,7 +14,7 @@ from glm_model import each_team_over, joint_prob  # noqa: E402
 from log_prices import parse_file  # noqa: E402
 from log_projections import FIELDS, upgrade_header  # noqa: E402
 from price_sheet import poisson_tail  # noqa: E402
-from score_projections import report, score  # noqa: E402
+from score_projections import CONFIRM_N, FINAL_N, each_verdict, report, score  # noqa: E402
 
 
 def test_no_link_is_the_independent_price():
@@ -96,3 +96,19 @@ def test_confirmation_read_scores_each_team_on_rows_with_the_link(db, tmp_path):
     text = report(acc)
     assert "confirmation read, 1 matches" in text and "not enough matches yet" in text
     assert "each 2b" not in text.split("Each team")[0]       # not listed as a model version
+
+
+def acc(n, mean_gain, sd, hit2=0.40, cur2=0.36, b2=0.38):
+    """Totals as score() keeps them, for n matches with the given per-match gain mean and spread."""
+    return dict(n=n, ll_cur=-2.0 * n, ll_2b=(-2.0 + mean_gain) * n, gain_sq=n * (sd ** 2 + mean_gain ** 2),
+                hit2=hit2 * n, cur2=cur2 * n, **{"2b2": b2 * n})
+
+
+def test_confirmation_needs_the_interval_above_zero_not_just_a_positive_gain():
+    assert each_verdict(acc(CONFIRM_N - 1, 0.02, 0.1))[0] == "not enough matches yet"
+    assert each_verdict(acc(CONFIRM_N, 0.0127, 0.127))[0] == "PASS"          # the backtest's gain and spread
+    v, gain, lower = each_verdict(acc(CONFIRM_N, 0.005, 0.127))             # positive, but within noise
+    assert gain > 0 and lower < 0 and v.startswith("not yet")                # one more look, at FINAL_N
+    assert each_verdict(acc(FINAL_N, 0.005, 0.127))[0] == "FAIL"             # still within noise: done
+    assert each_verdict(acc(CONFIRM_N, -0.002, 0.127))[0] == "FAIL"          # no gain: no second look
+    assert each_verdict(acc(CONFIRM_N, 0.0127, 0.127, b2=0.33))[0] == "FAIL"  # calibration gap wider

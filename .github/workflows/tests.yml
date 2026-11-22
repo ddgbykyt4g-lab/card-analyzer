@@ -4,6 +4,9 @@ name: Tests
 on:
   push:
     paths: ["**.py", "card_value_schema.sql", "requirements.txt", ".github/workflows/tests.yml"]
+  # a pull request is checked on its whole diff, so one whose last commit only touches docs still gets a run
+  pull_request:
+    paths: ["**.py", "card_value_schema.sql", "requirements.txt", ".github/workflows/tests.yml"]
   workflow_dispatch:
 
 permissions:

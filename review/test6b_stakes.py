@@ -10,7 +10,10 @@ team row:
   late   the team has at most LATE games left (including this one);
   fight  late, and within FIGHT points of a line: of the team at the line's upper place if it is below the line,
          of the team at the lower place if it is on or above it;
-  dead   late, and for every line the gap is more than 3 points x games left, so it can't cross any.
+  dead   late, and for every line the gap can't be closed: below a line, more than 3 x the team's own games
+         left to the team at the line; on or above it, more than 3 x the games left of the team just below.
+Ties in the table break on goal difference, then goals scored. (Amended 22 Nov 2026, before any 2026-27 final
+round: the first version assumed equal games left and broke ties arbitrarily.)
 Walk-forward, refit weekly, against the unchanged model. Only 2024-25 and 2025-26 have final rounds among the
 untuned seasons. Primary: the +0.004 bar over all matches, 2024-27. Stated before running: the gain on matches
 where either team is late. Read-only.
@@ -49,14 +52,14 @@ def stake_features(con, d: Data) -> np.ndarray:
         games = 38 if lg == "SPL" else 2 * (n - 1)
         rel = RELEGATED_SEASON.get((lg, season), RELEGATED[lg])
         lines = [(1, 2), (EUROPE[lg], EUROPE[lg] + 1), (n - rel, n - rel + 1)]
-        pts, played = defaultdict(int), defaultdict(int)
+        pts, played, gd, gf = defaultdict(int), defaultdict(int), defaultdict(int), defaultdict(int)
         days = sorted({r[3] for r in ms})
         by_day = defaultdict(list)
         for r in ms:
             by_day[r[3]].append(r)
         for day in days:
-            table = sorted(teams, key=lambda t: -pts[t])
-            at = {i + 1: pts[t] for i, t in enumerate(table)}
+            table = sorted(teams, key=lambda t: (-pts[t], -gd[t], -gf[t], t))   # ties: goal difference, goals
+            team_at = {i + 1: t for i, t in enumerate(table)}
             pos = {t: i + 1 for i, t in enumerate(table)}
             for r in by_day[day]:
                 out = []
@@ -65,11 +68,15 @@ def stake_features(con, d: Data) -> np.ndarray:
                     late = left <= LATE
                     fight, dead = False, late
                     for up, low in lines:
-                        ref = at[up] if pos[t] > up else at[low]
-                        gap = abs(pts[t] - ref)
+                        below = pos[t] > up
+                        ref = team_at[up] if below else team_at[low]
+                        gap = abs(pts[t] - pts[ref])
                         if late and gap <= FIGHT:
                             fight = True
-                        if gap <= 3 * left:
+                        # below the line, t must catch ref on its own games left; on or above it, ref must
+                        # catch t on ref's games left (the other side can at worst take no points)
+                        closable = 3 * (left if below else games - played[ref])
+                        if gap <= closable:
                             dead = False
                     out.append([float(late), float(fight), float(dead)])
                 feats[r[0]] = out
@@ -80,6 +87,10 @@ def stake_features(con, d: Data) -> np.ndarray:
                     played[a] += 1
                     pts[h] += 3 if r[6] > r[7] else 1 if r[6] == r[7] else 0
                     pts[a] += 3 if r[7] > r[6] else 1 if r[6] == r[7] else 0
+                    gd[h] += r[6] - r[7]
+                    gd[a] += r[7] - r[6]
+                    gf[h] += r[6]
+                    gf[a] += r[7]
     return np.array([f for m in d.match_id for f in feats.get(int(m), [[0.0] * 3, [0.0] * 3])])
 
 

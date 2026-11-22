@@ -101,7 +101,8 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   `each_team_over` prices "each team N+" with a common-shock bivariate Poisson (each team still Poisson(mu)).
   Logged as the `rho` column of `data/projections.csv`; `check_prices.py` shows the 2b price and verdict beside
   the live (independent) one for `each` blocks; `score_projections.py` reports the confirmation read (pass:
-  300+ matches with rho, joint log-loss gain above 0, each team 2+ gap to actual narrower). Live prices,
+  500+ matches with rho, joint log-loss gain's 95% interval above 0, each team 2+ gap to actual narrower; a
+  positive gain still within noise gets one final look at 1,000). Live prices,
   `--log-bet` and settlement are unchanged until it passes and the user agrees.
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)

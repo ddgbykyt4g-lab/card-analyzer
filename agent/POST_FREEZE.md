@@ -1,8 +1,9 @@
 # Post-freeze test list
 
 **Freeze lifted 22 Nov 2026 (user's decision).** glm-v4 judged on 283 scored matches of `data/projections.csv`:
-live log-loss -2.112 against -2.111 in the backtest for the same matches, RMSE 2.03 against 2.05, so the live
-model performs as backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
+live log-loss -2.112 against -2.111 for the backtest's 2024-27 average (a different set of matches, so a
+level check, not a match-by-match comparison), RMSE 2.03 against 2.05, so the live model performs about as
+backtested; it runs 0.21 cards a match low (3.99 against 4.20). Weekend results of 21-22 Nov
 were not yet on football-data; re-score when they are. glm-v4.1 stays live while the tests below run.
 
 Each test: walk-forward on 2024-27 (seasons not tuned on), against the current model on the same matches.
@@ -25,10 +26,14 @@ a confirmation read on fresh matches.
   for the user, not a model change.
 - **Test 6b, match stakes: FAIL** (22 Nov, `review/test6b_stakes.py`, form fixed before running: late = 8 or
   fewer games left; fight = late and within 3 points of the title, Europe or relegation line; dead = late and
-  unable to cross any line). All matches +0.0017 a match on 2024-27 (CI -0.0002 to +0.0035). Late matches only
-  (868, from 2024-25 and 2025-26): +0.0094 (CI +0.0010 to +0.0178), but +0.0154 then +0.0035, so not stable.
-  The usable finding: in the final 8 rounds the model over-projects teams with nothing to play for, **-0.31
-  cards per team** (396 team rows, CI -0.44 to -0.19), while teams in a fight are about right (-0.03).
+  unable to cross any line). Amended the same day, before any 2026-27 final round: ties break on goal
+  difference then goals, and "can't cross" uses the right side's games left (the first version assumed equal
+  games left and broke ties arbitrarily; its figures were within 0.01 of these). All matches +0.0018 a match
+  on 2024-27 (CI -0.0001 to +0.0036). Late matches only (868, from 2024-25 and 2025-26): +0.0101 (CI +0.0017 to
+  +0.0183), but +0.0153 then +0.0048, so not stable. The usable finding: in the final 8 rounds the model
+  over-projects teams with nothing to play for, **-0.32 cards per team** (415 team rows, CI -0.44 to -0.19),
+  while teams in a fight are about right (-0.03). The check still uses only the team just across each line,
+  not one further away with games in hand.
   Not a model change. Proposed for the user: from the final 8 rounds (about April), a shortlist caution against
   overs where a team is mathematically dead, checked on 2026-27's final rounds as a fresh test (fixed now:
   dead team rows under-run the live projection, mean below 0 with a CI excluding 0).
@@ -57,10 +62,18 @@ a confirmation read on fresh matches.
   and match totals unchanged by construction. Each team 2+ probability rises 1.8 points on average (0.6-3.0).
   Per the rules: log alongside glm-v4.1, not swapped in, until a confirmation read on fresh matches.
   **In shadow from 22 Nov 2026:** rho logged per match in `data/projections.csv`; `check_prices.py` shows the 2b
-  each-team price and verdict beside the live one. **Confirmation read, fixed now:** on 300+ finished matches
-  logged with rho, `score_projections.py` must show a joint (home, away) log-loss gain above 0 and an each
-  team 2+ gap to actual narrower than the live pricing's. At current fixture counts that is about 6 weeks
-  (mid-January). Passing, it goes live for each-team prices only, with the user's agreement.
+  each-team price and verdict beside the live one. **Confirmation read (tightened 22 Nov 2026, before any
+  match was logged with rho):** on 500+ finished matches logged with rho (about 10 weeks, late January),
+  `score_projections.py` must show the joint (home, away) log-loss gain with its 95% interval above 0, and an
+  each team 2+ gap to actual narrower than the live pricing's. If the gain is positive but the interval still
+  includes 0, one further look at 1,000 matches (about the end of the season) is final. The first version
+  ("gain above 0" on 300) would have passed about half the time with no real effect: at 300 the standard
+  error (about 0.007) is near the gain being confirmed. Power for the backtest's gain: about 60% at 500,
+  about 90% by 1,000; two looks put a false pass at about 8%. Passing, it goes live for each-team prices only,
+  with the user's agreement.
+  **On the yardstick:** the +0.004 bar was set for match-total log-loss; 2b is scored on the joint outcome,
+  where gains run larger. The size is still what real dependence predicts: a residual correlation of 0.17
+  is worth about -0.5 x ln(1 - 0.17^2) = 0.015 a match, against +0.0127 measured.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
