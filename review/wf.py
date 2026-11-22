@@ -22,6 +22,7 @@ OUT = os.path.join(ROOT, "review", "out")
 SKY = Weights(1, 1, 1)
 TUNED = ["2022-23", "2023-24"]                 # seasons the half-life and penalties were tuned on
 UNTUNED = ["2024-25", "2025-26", "2026-27"]   # reported in the repo as out-of-sample
+LINES = (2.5, 3.5, 4.5, 5.5, 6.5)
 
 
 def connect(path: str) -> sqlite3.Connection:
@@ -80,3 +81,27 @@ def boot_ci(values, n=4000, seed=1, stat=np.mean) -> tuple[float, float]:
     v = np.asarray(values, dtype=float)
     draws = [stat(v[rng.integers(0, len(v), len(v))]) for _ in range(n)]
     return float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))
+
+
+def metrics(rows: list[dict]) -> dict:
+    y = np.array([r["y_h"] + r["y_a"] for r in rows])
+    mu = np.array([r["mu_h"] + r["mu_a"] for r in rows])
+    brier = np.mean([(p_over_total(r, L) - (r["y_h"] + r["y_a"] > L)) ** 2 for r in rows for L in LINES])
+    return dict(n=len(rows), ll=logloss_total(rows), rmse=float(np.sqrt(np.mean((y - mu) ** 2))), brier=float(brier),
+                mu=float(mu.mean()), y=float(y.mean()))
+
+
+def climatology(rows: list[dict], all_rows: list[dict], window: int = 380) -> list[dict]:
+    """Baseline with no team, referee or odds information: each league's mean total over its previous
+    `window` matches, split evenly between the teams, with the same dispersion the model used."""
+    hist: dict[str, list[tuple[int, float]]] = {}
+    for r in sorted(all_rows, key=lambda r: r["day"]):
+        hist.setdefault(r["league"], []).append((r["day"], r["y_h"] + r["y_a"]))
+    out = []
+    for r in rows:
+        past = [t for d, t in hist[r["league"]] if d < r["week"] * 7 - 3][-window:]
+        if len(past) < 50:
+            continue
+        m = float(np.mean(past))
+        out.append(dict(r, mu_h=m / 2, mu_a=m / 2))
+    return out
