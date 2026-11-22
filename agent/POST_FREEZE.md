@@ -33,8 +33,15 @@ a confirmation read on fresh matches.
   cautions on long team lines, and says each-team prices are conservative. Candidate for a new, pre-specified
   test 2b: Poisson marginals with positive dependence (e.g. a common shock or a copula), which A could not give
   without widening the marginals.
-  **Parked (22 Nov):** 1 of 16 real bets was each-team and no each-team prices were sent this month; A shows
-  the dependence moves joint log-loss by under a tenth of the bar. Revisit only if each-team bets become common.
+  Parked, then reopened on the user's point that few each-team bets reflects where we looked, not the market.
+- **Test 2b, common-shock bivariate Poisson: PASS** (22 Nov, `review/test2b_each_team.py`, form and settings
+  fixed before running). Each team stays Poisson(mu); a shared Poisson part l3 = rho x sqrt(mu_h x mu_a) with
+  rho per league from the training residuals (2024-27 means: EPL 0.19, La Liga 0.17, Bundesliga 0.15, SPL 0.09,
+  Ligue 1 0.08, Serie A 0.06). Joint (home, away) log-loss +0.0127 a match on 2024-27 (CI +0.0090 to +0.0165),
+  positive every season (+0.0159, +0.0106, +0.0090), +0.0129 on the tuned seasons. Each team 2+ gap to actual
+  +0.033 -> +0.015 (halved, the second check); each team 3+ 0.118 -> 0.136 v 0.131 actual; single-team lines
+  and match totals unchanged by construction. Each team 2+ probability rises 1.8 points on average (0.6-3.0).
+  Per the rules: log alongside glm-v4.1, not swapped in, until a confirmation read on fresh matches.
 
 Already tried and rejected out-of-sample: rest days, referee foul rate, the interaction terms listed in
 CLAUDE.md.
