@@ -11,7 +11,8 @@ Rules (the overs bar and the cautions in SATURDAY.md step 5):
   on a team line of 3+ cards, an edge above +20% is a warning, not a bet: take the shorter line or skip;
   a heavy underdog (under 20% to win) gets 2+ at most;
   only the shortest line that clears the bar is the bet: the longer ones are the same view with more variance;
-  unders are shown but not recommended while the model projects too few cards (agent/POST_FREEZE.md).
+  unders are shown but not recommended while the model projects too few cards (agent/POST_FREEZE.md);
+  Serie A overs must still clear the bar with the projection 0.3 cards lower (SHADE_LEAGUES), or it's a pass.
 
 Each-team blocks ("each": both teams 2+, ...) are priced with the teams' card link (post-freeze test 2b,
 glm_model.each_team_over; live from glm-v4.2), and beside that, for comparison, as the old independent price.
@@ -33,7 +34,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from collect_cards import DB  # noqa: E402
 from price_sheet import MIN_REF_MATCHES, book_weights, find_match, fixtures, poisson_tail  # noqa: E402
-from value_finder import ISO, Config, Projector, side_probs  # noqa: E402
+from value_finder import ISO, Config, Projector, make_pmf, side_probs  # noqa: E402
 from glm_model import each_team_over  # noqa: E402
 
 from log_prices import parse_file  # noqa: E402
@@ -44,6 +45,10 @@ TAIL_P = 0.40          # an over the model rates below this is a tail bet
 LONG_TEAM_LINE = 2.5   # "3 or more" and longer
 BIG_EDGE = 0.20
 UNDERDOG_P = 0.20
+# Serie A caution (user's decision, 23 Nov 2026): the model runs about 0.3 cards a match high in Serie A this season
+# (2026-27 backtest -0.31 on 110 matches, live log -0.29 on 60). An over there must still clear the bar with the
+# projection 0.3 cards lower (team lines scaled in proportion). Review at the end of the season.
+SHADE_LEAGUES = {"SERIEA": 0.3}
 # Experiment A, fixed in advance (review/EXPERIMENT_A.md): don't tune these on the results they are judged by
 BLEND_W = 0.5       # weight on the model, logit scale; the rest is the bookmaker's de-vigged probability
 BLEND_EV = 0.02     # blended value needed: break-even if a third of the model's disagreement is real
@@ -102,6 +107,8 @@ def verdicts(rows: list[dict], team_line: bool = False, underdog: bool = False) 
             verdict = f"pass: tail bet (model under {TAIL_P:.0%})"
         elif team_line and underdog and r["line"] >= LONG_TEAM_LINE:
             verdict = "pass: heavy underdog, 2+ only"
+        elif r.get("p_shade") is not None and r["p_shade"] * r["over"] + push - 1 < OVER_EV:
+            verdict = f"pass: Serie A caution (value {r['p_shade'] * r['over'] + push - 1:+.0%} with the projection shaded)"
         elif team_line and r["line"] >= LONG_TEAM_LINE and v > BIG_EDGE:
             verdict = f"warning: edge above {BIG_EDGE:.0%} on a long team line, take the shorter line or skip"
         elif bet_found:
@@ -114,29 +121,48 @@ def verdicts(rows: list[dict], team_line: bool = False, underdog: bool = False) 
     return out
 
 
+def shading(fx, priced) -> dict | None:
+    """For a league in SHADE_LEAGUES: the projection lowered by its shade (cards a match), as a total pmf and as the
+    factor team projections are scaled by. None elsewhere."""
+    league = fx["league"] if "league" in fx.keys() else None
+    cut = SHADE_LEAGUES.get(league)
+    if not cut or priced.rating <= cut:
+        return None
+    mean = priced.rating / priced.scale
+    dist = priced.detail.get("distribution", "")
+    size = float(dist.split("=")[1]) if dist.startswith("NB r=") else None
+    factor = (mean - cut) / mean
+    return dict(factor=factor, pmf=make_pmf(mean * factor, size))
+
+
 def price_block(con: sqlite3.Connection, projector: Projector, fx: sqlite3.Row, block: dict, book: str) -> dict | None:
     """Model probabilities for a price block's lines, plus what the verdicts need to know about the match."""
     priced = projector.price(fx, book_weights(con, book))
     if priced is None:
         return None
     side = block["market"]
+    shade = shading(fx, priced)
     rows = []
     for line, over, under in block["rows"]:
         if side == "total":
             p, push = side_probs(priced.pmf, line / priced.scale, "over")
+            p_shade = side_probs(shade["pmf"], line / priced.scale, "over")[0] if shade else None
         elif side == "each" and priced.detail.get("model") == "glm":
             if line != math.floor(line) + 0.5:
                 continue  # each-team lines are "N or more": half lines only
             mu_h, mu_a = priced.detail["home_mu"], priced.detail["away_mu"]
             indep = poisson_tail(mu_h, line, "over")[0] * poisson_tail(mu_a, line, "over")[0]
             p = each_team_over(mu_h, mu_a, priced.detail.get("rho", 0.0), line)
-            rows.append(dict(line=line, p_over=p, p_push=0.0, over=over, under=under, p_indep=indep))
+            p_shade = (each_team_over(mu_h * shade["factor"], mu_a * shade["factor"], priced.detail.get("rho", 0.0), line)
+                       if shade else None)
+            rows.append(dict(line=line, p_over=p, p_push=0.0, over=over, under=under, p_indep=indep, p_shade=p_shade))
             continue
         elif priced.detail.get("model") == "glm":
             p, push = poisson_tail(priced.detail[f"{side}_mu"], line, "over")
+            p_shade = poisson_tail(priced.detail[f"{side}_mu"] * shade["factor"], line, "over")[0] if shade else None
         else:
             return None  # team lines need the GLM's per-team projection
-        rows.append(dict(line=line, p_over=p, p_push=push, over=over, under=under))
+        rows.append(dict(line=line, p_over=p, p_push=push, over=over, under=under, p_shade=p_shade))
     if side == "each":
         live = verdicts(rows, team_line=True)
         for r in live:

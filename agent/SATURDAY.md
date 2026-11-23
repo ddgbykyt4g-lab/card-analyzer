@@ -64,6 +64,9 @@ There is no live odds feed yet, so value is expressed as **the minimum price wor
   the reason column:
   - **Heavy underdogs' card lines** (own win probability under about 20%): a blowout kills the fouling, so
     the model's underdog boost can overshoot. Prefer the match total or skip; never the long team lines.
+  - **Serie A overs (23 Nov 2026)**: the model runs about 0.3 cards a match high in Serie A this season, so an
+    over there must still clear +8% with the projection 0.3 cards lower (team lines scaled in proportion).
+    `check_prices.py` applies it ("pass: Serie A caution"); use its verdict. Review at the end of the season.
   - **Team lines**: name the team's most-booked players and check they are expected to start. If they are
     likely benched or out, take 3 pts off the team-line probability or drop it.
   - **Edges above about +20% on a team line of 3+ cards or longer**: treat as a sign the model is missing

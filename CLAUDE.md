@@ -147,7 +147,7 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
 - Checking logged prices: `python agent/check_prices.py --db cards.db data/prices/<file>` prints value, the
   minimum odds and a verdict per line for matches not yet kicked off, applying the shortlist rules of
   `agent/SATURDAY.md` step 5 (overs +8%, no tail bets under 40%, long team lines, heavy underdogs, no unders
-  for now). It reads only; the user decides and places.
+  for now, Serie A overs must clear +8% with the projection 0.3 cards lower: user's decision, 23 Nov 2026). It reads only; the user decides and places.
 - Experiment A (from 2026-11-10, plan and pass marks in `review/EXPERIMENT_A.md`; background in `REVIEW.md`):
   `check_prices.py` also prints the model blended 50/50 with Sky Bet's de-vigged price and a second "blend
   rule" verdict (blended value +2%). The current-rule verdict is unchanged. `python review/experiment_a.py pick`
