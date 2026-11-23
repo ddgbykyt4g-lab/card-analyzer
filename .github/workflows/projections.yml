@@ -6,18 +6,44 @@ name: Projection log
 
 on:
   schedule:
-    - cron: "47 8 * * 0-5"   # 09:47 UK in summer, 08:47 in winter
+    # GitHub started scheduled runs 6-8 hours late in Nov 2026, so three attempts (UTC; UK winter time = UTC):
+    # the first to start does the work, the "due" job skips the others (data/last_run/projections).
+    - cron: "47 2 * * 0-5"
+    - cron: "47 4 * * 0-5"
+    - cron: "47 7 * * 0-5"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-concurrency:
-  group: cards-db
-  cancel-in-progress: false
-
 jobs:
+  # Outside the cards-db group, so a skipped attempt never queues there (a queued run there would replace a
+  # waiting "Log a bet" run).
+  due:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: main
+          sparse-checkout: data/last_run
+      - id: check
+        run: |
+          today=$(TZ=Europe/London date +%F)
+          last=$(cat data/last_run/projections 2>/dev/null || true)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$last" = "$today" ]; then
+            echo "Already ran for $today: skipping"; echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   log:
+    needs: due
+    if: needs.due.outputs.run == 'true'
+    concurrency:
+      group: cards-db
+      cancel-in-progress: false
     runs-on: ubuntu-24.04  # Playwright 1.56 has no Chromium build for 26.04 (ubuntu-latest since Oct 2026)
     timeout-minutes: 60
     steps:
@@ -78,7 +104,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/projections.csv
+          mkdir -p data/last_run && TZ=Europe/London date +%F > data/last_run/projections   # later attempts skip
+          git add data/projections.csv data/last_run
           [ ! -f data/espn_cards.csv ] || git add data/espn_cards.csv   # ESPN's card counts: the settlement cross-check
           if ! cmp -s /tmp/pending_before /tmp/pending_after; then
             git add cards.db   # a bet settled: keep it (cards.db is otherwise only saved on Saturdays)
