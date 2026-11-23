@@ -1,4 +1,4 @@
-"""Post-freeze test 2b in shadow: the each-team dependence model, its price-file block, the price checker's
+"""Post-freeze test 2b, live from glm-v4.2: the each-team dependence model, its price-file block, the price checker's
 2b column (the live verdict unchanged), the projection log's rho column and the confirmation read."""
 import csv
 import math
@@ -44,24 +44,50 @@ def fake(rho):
     return SimpleNamespace(price=lambda fx, w: priced)
 
 
-def test_checker_keeps_the_live_verdict_and_shows_2b_beside_it(monkeypatch):
+def test_checker_prices_each_team_with_the_link_and_shows_the_old_price(monkeypatch):
     import check_prices
     monkeypatch.setattr(check_prices, "book_weights", lambda con, book: None)
-    block = dict(market="each", rows=[(1.5, 2.2, None), (2.5, 9.0, None)],
+    block = dict(market="each", rows=[(1.5, 2.0, None), (2.5, 9.0, None)],
                  when=datetime(2026, 11, 28, 10, tzinfo=timezone.utc))
-    live = price_block(None, fake(0.0), {"match_id": 1}, block, "Sky Bet")
+    unlinked = price_block(None, fake(0.0), {"match_id": 1}, block, "Sky Bet")
     linked = price_block(None, fake(0.2), {"match_id": 1}, block, "Sky Bet")
     by = lambda out: {r["line"]: r for r in out["rows"]}
-    for line in (1.5, 2.5):  # the live probability and verdict don't depend on the link
-        assert by(live)[line]["p_over"] == by(linked)[line]["p_over"]
-        assert by(live)[line]["verdict"] == by(linked)[line]["verdict"]
-    r = by(linked)[1.5]
-    assert r["p_2b"] > r["p_over"] and r["value_2b"] > r["value_over"]
-    # 2+ at 2.2: live p 0.507 x 2.2 = +12% clears the bar; the 2b price shows more value
-    assert r["verdict"] == "BET" and r["verdict_2b"] == "BET"
+    r0, r = by(unlinked)[1.5], by(linked)[1.5]
+    assert math.isclose(r0["p_over"], r0["p_indep"])                 # no link: the old price
+    assert r["p_over"] > r["p_indep"] == r0["p_indep"]                # the link is what's priced now
+    # 2+ at 2.0: independent 0.507 x 2.0 = +1% (no); linked 0.530 x 2.0 = +6% (still no); the verdict uses linked
+    assert r["value_over"] > r["value_indep"]
+    assert math.isclose(r["value_over"], r["p_over"] * 2.0 - 1)
     fx = {"home": "Leeds", "away": "Everton", "referee_id": None, "referee": None, "ref_matches": 0}
     text = render(fx, block, linked)
-    assert "each team" in text and "team link 0.20" in text and "2b (shadow, not yet live)" in text
+    assert "each team" in text and "team link 0.20" in text and "glm-v4.2" in text and "indep" in text
+
+
+def test_logged_each_team_bet_uses_the_link(db, tmp_path):
+    import sqlite3
+    from collect_cards import DB
+    from glm_model import each_team_under
+    from price_sheet import log_bet
+    from value_finder import Priced
+
+    class Proj:
+        version = "test"
+
+        def price(self, fx, w):
+            pmf = lambda k: math.exp(k * math.log(4) - 4 - math.lgamma(k + 1))
+            return Priced(4.0, pmf, 1.0, "test", dict(model="glm", home_mu=2.0, away_mu=2.0, rho=0.2))
+
+    db.close()
+    con = DB(str(tmp_path / "t.db"), None)
+    con.con.row_factory = sqlite3.Row
+    now = datetime(2026, 10, 10, 9, 0, tzinfo=timezone.utc)
+    over = log_bet(con, Proj(), "Arsenal v Leeds: each team 2+ @ 15/8 Sky Bet £10", now, 7, 0.05,
+                   espn_cards=tmp_path / "none.csv")
+    assert math.isclose(over["model_prob"], each_team_over(2.0, 2.0, 0.2, 1.5))
+    assert over["model_prob"] > poisson_tail(2.0, 1.5, "over")[0] ** 2
+    under = log_bet(con, Proj(), "Arsenal v Leeds: each team under 1.5 @ 3.0 Sky Bet £10", now, 7, 0.05,
+                    espn_cards=tmp_path / "none.csv")
+    assert math.isclose(under["model_prob"], each_team_under(2.0, 2.0, 0.2, 1.5))
 
 
 def test_old_projection_log_gets_the_rho_column(tmp_path):

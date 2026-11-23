@@ -13,9 +13,8 @@ Rules (the overs bar and the cautions in SATURDAY.md step 5):
   only the shortest line that clears the bar is the bet: the longer ones are the same view with more variance;
   unders are shown but not recommended while the model projects too few cards (agent/POST_FREEZE.md).
 
-Each-team blocks ("each": both teams 2+, ...) are priced as live, with the teams independent, and beside that
-with the dependence model of post-freeze test 2b (glm_model.each_team_over), its value and its own verdict
-("2b"), logged in shadow until its confirmation read. The live verdict is the current one.
+Each-team blocks ("each": both teams 2+, ...) are priced with the teams' card link (post-freeze test 2b,
+glm_model.each_team_over; live from glm-v4.2), and beside that, for comparison, as the old independent price.
 
 Experiment A (review/EXPERIMENT_A.md) adds a second verdict beside that one, without changing it. The model's
 probability is blended half-and-half (on the logit scale) with the bookmaker's own de-vigged probability, and
@@ -129,10 +128,9 @@ def price_block(con: sqlite3.Connection, projector: Projector, fx: sqlite3.Row, 
             if line != math.floor(line) + 0.5:
                 continue  # each-team lines are "N or more": half lines only
             mu_h, mu_a = priced.detail["home_mu"], priced.detail["away_mu"]
-            p = poisson_tail(mu_h, line, "over")[0] * poisson_tail(mu_a, line, "over")[0]
-            push = 0.0
-            p2b = each_team_over(mu_h, mu_a, priced.detail.get("rho", 0.0), line)
-            rows.append(dict(line=line, p_over=p, p_push=push, over=over, under=under, p_2b=p2b))
+            indep = poisson_tail(mu_h, line, "over")[0] * poisson_tail(mu_a, line, "over")[0]
+            p = each_team_over(mu_h, mu_a, priced.detail.get("rho", 0.0), line)
+            rows.append(dict(line=line, p_over=p, p_push=0.0, over=over, under=under, p_indep=indep))
             continue
         elif priced.detail.get("model") == "glm":
             p, push = poisson_tail(priced.detail[f"{side}_mu"], line, "over")
@@ -141,9 +139,8 @@ def price_block(con: sqlite3.Connection, projector: Projector, fx: sqlite3.Row, 
         rows.append(dict(line=line, p_over=p, p_push=push, over=over, under=under))
     if side == "each":
         live = verdicts(rows, team_line=True)
-        shadow = {r["line"]: r for r in verdicts([dict(r, p_over=r["p_2b"]) for r in rows], team_line=True)}
         for r in live:
-            r["value_2b"], r["verdict_2b"] = shadow[r["line"]]["value_over"], shadow[r["line"]]["verdict"]
+            r["value_indep"] = r["p_indep"] * r["over"] - 1 if r.get("over") else None
         return dict(projected=priced.rating, p_win=None, rho=priced.detail.get("rho", 0.0), rows=live)
     win = con.execute("SELECT p_home, p_away FROM match_prices WHERE match_id = ?", (fx["match_id"],)).fetchone()
     p_win = None if win is None or side == "total" else win[0] if side == "home" else win[1]
@@ -154,17 +151,17 @@ def price_block(con: sqlite3.Connection, projector: Projector, fx: sqlite3.Row, 
 
 def render_each(head: str, priced: dict) -> str:
     out = [head + f" · team link {priced['rho']:.2f}",
-           f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6} | {'2b':>5} {'value':>6}  verdict (current rule) / 2b (shadow)"]
+           f"  {'line':>5} {'over':>6} {'model':>6} {'value':>6} {'needs':>6} | {'indep':>5} {'value':>6}  verdict (current rule)"]
     for r in priced["rows"]:
         over = f"{r['over']:.2f}" if r["over"] else "-"
         value = f"{r['value_over']:+.0%}" if r["value_over"] is not None else "-"
         needs = f"{r['min_over']:.2f}" if r["min_over"] else "-"
-        v2 = f"{r['value_2b']:+.0%}" if r["value_2b"] is not None else "-"
+        vi = f"{r['value_indep']:+.0%}" if r["value_indep"] is not None else "-"
         out.append(f"  {math.floor(r['line']) + 1:>4}+ {over:>6} {r['p_over']:>6.0%} {value:>6} {needs:>6} | "
-                   f"{r['p_2b']:>5.0%} {v2:>6}  {r['verdict']} / {r['verdict_2b']}")
-    pick = lambda key: next((f"each team {math.floor(r['line']) + 1}+ at {r['over']:.2f}" for r in priced["rows"]
-                             if r[key].startswith("BET")), "no bet")
-    out.append(f"  => current rule: {pick('verdict')}   |   2b (shadow, not yet live): {pick('verdict_2b')}")
+                   f"{r['p_indep']:>5.0%} {vi:>6}  {r['verdict']}")
+    pick = next((f"each team {math.floor(r['line']) + 1}+ at {r['over']:.2f}" for r in priced["rows"]
+                 if r["verdict"].startswith("BET")), "no bet")
+    out.append(f"  => current rule: {pick}   (model: teams linked, glm-v4.2; 'indep' = the old independent price)")
     return "\n".join(out)
 
 

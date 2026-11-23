@@ -35,7 +35,8 @@ MODEL_VERSION = "pcr-v1"
 # glm-v2: refitted in each book's card units; glm-v3: referees backfilled for BUNDES/LALIGA/SERIEA/LIGUE1 2022-26;
 # glm-v4: team foul rates (committed, drawn) as features; glm-v4.1: same model, on card data with two-yellow
 # dismissals counted once (they were 2 cards too high outside England, and in England from 2026-27)
-MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v4.1"}
+# glm-v4.2 (23 Nov 2026): same projections; each-team lines priced with the teams' card link (test 2b).
+MODEL_VERSIONS = {"pcr": "pcr-v1", "glm": "glm-v4.2"}
 
 
 # ───────────────────────────── Config & types ─────────────────────────────

@@ -270,11 +270,11 @@ class CardGLM:
         return mu[0::2], mu[1::2], sizes
 
 
-# ───────────────────────────── Each-team dependence (shadow, test 2b) ─────────────────────────────
+# ───────────────────────────── Each-team dependence (test 2b, live from glm-v4.2) ─────────────────────────────
 # Post-freeze test 2b (agent/POST_FREEZE.md, review/test2b_each_team.py): the two teams' cards move together
 # (residual correlation about +0.17) while each team's count is Poisson around the model. A common-shock
-# bivariate Poisson keeps each marginal Poisson(mu) and adds the dependence. Logged and shown beside the live
-# each-team price; it does not change any live price until a confirmation read passes.
+# bivariate Poisson keeps each marginal Poisson(mu) and adds the dependence. Prices each-team lines live from
+# 23 Nov 2026 (user's decision, ahead of the confirmation read, which still runs and can switch it back).
 def team_link(model: "CardGLM", d: Data, train: np.ndarray, asof_day: int, half_life: float) -> dict[str, float]:
     """rho per league code: recency-weighted covariance of home and away residuals over the weighted mean of
     sqrt(mu_h * mu_a), on the training matches, floored at 0."""
@@ -306,6 +306,12 @@ def each_team_over(mu_h: float, mu_a: float, rho: float, line: float, kmax: int 
 
     p1, p2, p3 = pois(mu_h - l3), pois(mu_a - l3), pois(l3)
     return float(sum(p3[s] * tail(p1, k - s) * tail(p2, k - s) for s in range(kmax)))
+
+
+def each_team_under(mu_h: float, mu_a: float, rho: float, line: float) -> float:
+    """P(both teams' cards < line) under the same model: the each-team under."""
+    k = math.floor(line)
+    return float(sum(joint_prob(mu_h, mu_a, rho, h, a) for h in range(k + 1) for a in range(k + 1)))
 
 
 def joint_prob(mu_h: float, mu_a: float, rho: float, h: int, a: int) -> float:

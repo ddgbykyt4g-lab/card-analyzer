@@ -71,6 +71,10 @@ a confirmation read on fresh matches.
   error (about 0.007) is near the gain being confirmed. Power for the backtest's gain: about 60% at 500,
   about 90% by 1,000; two looks put a false pass at about 8%. Passing, it goes live for each-team prices only,
   with the user's agreement.
+  **Live from 23 Nov 2026 (user: "it's a net positive"), ahead of the confirmation read:** `glm-v4.2` prices
+  each-team lines with the link (`--log-bet`, `check_prices.py`); totals and single-team lines unchanged. The
+  confirmation read above still runs on the logged rho and decides whether it stays; a FAIL means each-team
+  pricing goes back to independent.
   **On the yardstick:** the +0.004 bar was set for match-total log-loss; 2b is scored on the joint outcome,
   where gains run larger. The size is still what real dependence predicts: a residual correlation of 0.17
   is worth about -0.5 x ln(1 - 0.17^2) = 0.015 a match, against +0.0127 measured.
