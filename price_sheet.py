@@ -289,13 +289,15 @@ def log_bet(db: DB, projector: Projector, text: str, now: datetime, days: float,
             con.rollback()
             raise SystemExit("Team and each-team markets need the GLM (--model glm) for per-team projections")
         mu_h, mu_a = priced.detail["home_mu"], priced.detail["away_mu"]
-        if kind == "each":  # both teams must clear the line (over) / stay under it (under); teams independent
-            ph, push_h = poisson_tail(mu_h, bet["line"], bet["selection"])
-            pa, push_a = poisson_tail(mu_a, bet["line"], bet["selection"])
-            p_win, p_push, projected = ph * pa, 0.0, mu_h + mu_a
-            if push_h or push_a:
+        if kind == "each":  # both teams must clear the line (over) / stay under it (under)
+            if bet["line"] != math.floor(bet["line"]) + 0.5:
                 con.rollback()
                 raise SystemExit("Each-team markets need a half line (use 2+ or over 1.5)")
+            # glm-v4.2: the teams' cards move together (league link rho, post-freeze test 2b)
+            from glm_model import each_team_over, each_team_under
+            rho = priced.detail.get("rho", 0.0)
+            f = each_team_over if bet["selection"] == "over" else each_team_under
+            p_win, p_push, projected = f(mu_h, mu_a, rho, bet["line"]), 0.0, mu_h + mu_a
         else:
             mu = mu_h if kind == "home" else mu_a
             p_win, p_push = poisson_tail(mu, bet["line"], bet["selection"])

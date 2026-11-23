@@ -84,7 +84,7 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
 - Referees: football-data gives them for EPL only; SPL and the other four leagues get them from ESPN match
   summaries (available from about April 2022, `ESPN_FIRST_MONTH`). The 2022-26 gap was backfilled once
   with `agent/backfill_referees.py` (CSV kept on the `referee-backfill` branch); out-of-sample it improved
-  every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`; with fouls, `glm-v4`.
+  every untuned season (all-league RMSE 2.221 -> 2.206). Bets priced after this carry model `glm-v3`; with fouls, `glm-v4`; with the each-team link, `glm-v4.2`.
   `glm-v4.1` (from 2026-11-10) is the same model on corrected card data: two-yellow dismissals had been stored
   2 cards too high outside England (and in England from 2026-27), about 6% of matches. Existing rows are only
   corrected by a one-off `collect_cards.py --history 5 --resplit`; the normal collector keeps rows it has split.
@@ -99,14 +99,14 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   log-loss equal to the backtest's. Candidate changes run in order from `agent/POST_FREEZE.md`, each walk-forward
   on 2024-27 against the current model; keep one only at +0.004 log-loss a match or better, logged alongside
   the live model until a confirmation read. Results are recorded there.
-- **Each-team link (post-freeze test 2b, passed 22 Nov 2026; in shadow):** home and away cards move together
-  (residual correlation about +0.17). `glm_model.team_link` estimates each league's link (rho) at fit time,
-  `each_team_over` prices "each team N+" with a common-shock bivariate Poisson (each team still Poisson(mu)).
-  Logged as the `rho` column of `data/projections.csv`; `check_prices.py` shows the 2b price and verdict beside
-  the live (independent) one for `each` blocks; `score_projections.py` reports the confirmation read (pass:
-  500+ matches with rho, joint log-loss gain's 95% interval above 0, each team 2+ gap to actual narrower; a
-  positive gain still within noise gets one final look at 1,000). Live prices,
-  `--log-bet` and settlement are unchanged until it passes and the user agrees.
+- **Each-team link (post-freeze test 2b; live from 23 Nov 2026 as `glm-v4.2`, user's decision):** home and away
+  cards move together (residual correlation about +0.17). `glm_model.team_link` estimates each league's link (rho)
+  at fit time; `each_team_over` / `each_team_under` price "each team N+" with a common-shock bivariate Poisson
+  (each team still Poisson(mu)). Used by `--log-bet` and `check_prices.py` for each-team lines (which also shows
+  the old independent price as `indep`); match totals and single-team lines are unchanged. Gone live ahead of
+  its confirmation read, which still runs: `score_projections.py` compares linked with independent on matches
+  logged with `rho` (500+ matches, gain's 95% interval above 0, each team 2+ gap narrower; one final look at
+  1,000). If it fails, each-team pricing goes back to independent.
 - Default `--model glm` (`glm_model.py`): team-level card regression with team discipline, opponent
   provocation, referee and home effects (shrunk toward the league average, 120-day recency half-life)
   plus pre-match 1X2 market odds as match context, and team foul rates (fouls committed and drawn,

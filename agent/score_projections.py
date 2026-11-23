@@ -152,13 +152,14 @@ def each_verdict(a: dict) -> tuple[str, float, float]:
 def report_each(a: dict) -> list[str]:
     n = a["n"]
     verdict, gain, lower = each_verdict(a)
-    return [f"Each team, live v 2b shadow (confirmation read, {n:.0f} matches logged with the team link):",
-            f"  joint log-loss: live {a['ll_cur'] / n:+.4f}, 2b {a['ll_2b'] / n:+.4f}, gain {gain:+.4f} "
+    return [f"Each team, independent v linked (2b, live from glm-v4.2; confirmation read, {n:.0f} matches with the link):",
+            f"  joint log-loss: independent {a['ll_cur'] / n:+.4f}, linked {a['ll_2b'] / n:+.4f}, gain {gain:+.4f} "
             f"(95% interval lower end {lower:+.4f})",
-            "  each team N+, projected live / 2b / actual: "
+            "  each team N+, projected independent / linked / actual: "
             + "  ".join(f"{k}+ {a[f'cur{k}'] / n:.0%}/{a[f'2b{k}'] / n:.0%}/{a[f'hit{k}'] / n:.0%}" for k in EACH_LINES),
             f"  pass mark (agent/POST_FREEZE.md): {CONFIRM_N}+ matches (final look {FINAL_N}), gain's 95% interval "
-            f"above 0 and the 2+ gap to actual narrower: {verdict}"]
+            f"above 0 and the 2+ gap to actual narrower: {verdict}"
+            + (" (switch each-team pricing back to independent)" if verdict == "FAIL" else "")]
 
 
 CONFIRM_N = 500  # about 10 weeks of fixtures; at 300 the interval is about as wide as the expected gain
