@@ -5,18 +5,47 @@ name: Saturday price sheet
 
 on:
   schedule:
-    - cron: "17 6 * * 6"   # 07:17 UK in summer, 06:17 in winter (GitHub cron is UTC)
+    # GitHub started scheduled runs 6-8 hours late in Nov 2026 (13:32 and 14:39 on Saturdays), so four attempts
+    # (UTC): Friday after the evening matches, then early Saturday. The first to start does the work for that
+    # Saturday; the "due" job skips the rest (data/last_run/saturday). Saturday's referees are out by Friday.
+    - cron: "47 22 * * 5"
+    - cron: "17 1 * * 6"
+    - cron: "17 3 * * 6"
+    - cron: "17 5 * * 6"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-concurrency:
-  group: cards-db
-  cancel-in-progress: false
-
 jobs:
+  # Outside the cards-db group, so a skipped attempt never queues there (a queued run there would replace a
+  # waiting "Log a bet" run).
+  due:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: main
+          sparse-checkout: data/last_run
+      - id: check
+        run: |
+          # the Saturday this run is for: today on a Saturday, tomorrow on a Friday (UK dates)
+          target=$(TZ=Europe/London date +%F -d "$( [ "$(TZ=Europe/London date +%u)" = 5 ] && echo tomorrow || echo today)")
+          last=$(cat data/last_run/saturday 2>/dev/null || true)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$last" = "$target" ]; then
+            echo "Already ran for $target: skipping"; echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   run:
+    needs: due
+    if: needs.due.outputs.run == 'true'
+    concurrency:
+      group: cards-db
+      cancel-in-progress: false
     runs-on: ubuntu-24.04  # Playwright 1.56 has no Chromium build for 26.04 (ubuntu-latest since Oct 2026)
     timeout-minutes: 90
     steps:
@@ -42,11 +71,18 @@ jobs:
         id: season
         run: |
           python - >> "$GITHUB_OUTPUT" <<'PY'
-          from datetime import date
-          d = date.today()
+          from datetime import datetime, timedelta, timezone
+          from zoneinfo import ZoneInfo
+          now = datetime.now(timezone.utc)
+          uk = now.astimezone(ZoneInfo("Europe/London")).date()
+          d = uk + timedelta(days=1) if uk.weekday() == 4 else uk   # a Friday run is for tomorrow
           y = d.year if d.month >= 8 else d.year - 1
+          # cover the weekend to Monday 06:00 UTC, as a Saturday 06:17 run with --days 2 did
+          monday = datetime.combine(d + timedelta(days=(7 - d.weekday()) % 7 or 7), datetime.min.time(),
+                                    timezone.utc).replace(hour=6)
           print(f"label={y}-{str(y + 1)[2:]}")
           print(f"day={d.isoformat()}")
+          print(f"days={max((monday - now).total_seconds() / 86400, 2):.2f}")
           PY
 
       - name: Collect data and settle bets
@@ -60,7 +96,7 @@ jobs:
 
       - name: Price sheet
         run: |
-          python price_sheet.py --db cards.db --days 2 --json > /tmp/sheet.json
+          python price_sheet.py --db cards.db --days ${{ steps.season.outputs.days }} --json > /tmp/sheet.json
           day=${{ steps.season.outputs.day }}
           {
             echo "# Price sheet $day (automatic, no team-news research)"
@@ -68,7 +104,7 @@ jobs:
             echo "Overs: take only at about +8-10% EV. Log what you bet with price_sheet.py --log-bet."
             echo
             echo '```'
-            python price_sheet.py --db cards.db --days 2
+            python price_sheet.py --db cards.db --days ${{ steps.season.outputs.days }}
             echo '```'
             echo
             echo "## Track record"
@@ -79,7 +115,7 @@ jobs:
           } > "reports/$day-prices.md"
 
       - name: Log projections
-        run: python agent/log_projections.py --db cards.db --days 2
+        run: python agent/log_projections.py --db cards.db --days ${{ steps.season.outputs.days }}
 
       - name: Phone dashboard
         run: |
@@ -90,6 +126,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p data/last_run && echo "${{ steps.season.outputs.day }}" > data/last_run/saturday   # later attempts skip
           git add cards.db reports/ data/
           git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
           git pull -q --rebase origin main && git push -q origin HEAD:main

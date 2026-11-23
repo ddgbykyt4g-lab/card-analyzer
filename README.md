@@ -17,7 +17,8 @@
 
 ## Saturday routine (free)
 
-1. GitHub Actions runs `.github/workflows/saturday.yml` each Saturday at 07:17 UK (06:17 in winter):
+1. GitHub Actions runs `.github/workflows/saturday.yml` once per weekend, Friday night or early Saturday (several
+   attempts, since GitHub's schedule can run hours late; only the first does the work):
    it updates the data, settles bets, saves the price sheet to `reports/<date>-prices.md` and sends a
    phone alert (needs the `NTFY_TOPIC` repository secret).
 2. Open `reports/<date>-prices.md`, paste it into Sonnet or Gemini with web search on, followed by the

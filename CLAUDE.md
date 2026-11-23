@@ -57,7 +57,9 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   environment variable, never written to files).
 
 ## Free Saturday run (GitHub Actions)
-- `.github/workflows/saturday.yml` runs each Saturday at 07:17 UK (06:17 in winter) without Claude:
+- `.github/workflows/saturday.yml` runs once per weekend without Claude, first of four attempts (Fri 22:47, Sat 01:17,
+  03:17, 05:17 UTC; GitHub started scheduled runs 6-8 hours late in Nov 2026). A `due` job outside the `cards-db`
+  group skips attempts once `data/last_run/saturday` holds that Saturday's date; a Friday run is for the next day:
   collector, settle, price sheet saved to `reports/<date>-prices.md`, push, then a phone alert built by
   `agent/free_summary.py` (overs at +8% EV). No team-news research. Needs the `NTFY_TOPIC` repo secret;
   run it by hand from the Actions tab (`workflow_dispatch`). It also writes the phone dashboard
@@ -69,7 +71,8 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   With no placed time, the time it was queued is used. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
 
-- `.github/workflows/projections.yml` (Sunday-Friday 09:47 UK) and the Saturday run append the model's
+- `.github/workflows/projections.yml` (Sunday-Friday, first of three attempts at 02:47, 04:47, 07:47 UTC, guarded by
+  `data/last_run/projections` the same way) and the Saturday run append the model's
   pre-kickoff projection for every match in the next 2 days to `data/projections.csv` (`agent/log_projections.py`:
   model version, card weights, expected cards, pmf 0-20). It pushes that file, and cards.db only when a bet settled. Score it with
   `python agent/score_projections.py cards.db data/projections.csv` (latest projection before kickoff per match).
