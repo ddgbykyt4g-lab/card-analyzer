@@ -70,7 +70,7 @@ FD_BASE = "https://www.football-data.co.uk"
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 
 # Min seconds between requests per host
-HOST_INTERVAL = {"www.football-data.co.uk": 2.0, "site.api.espn.com": 1.5}
+HOST_INTERVAL = {"www.football-data.co.uk": 2.0, "site.api.espn.com": 1.5, "www.epo.gr": 2.0}
 DEFAULT_INTERVAL = 4.0
 BLOCKED_RESOURCES = {"image", "media", "font"}
 PREINSTALLED_CHROMIUM = "/opt/pw-browsers/chromium"  # Claude cloud containers ship their own build here
@@ -1286,6 +1286,100 @@ async def load_laliga_referees(ctx: BrowserContext, db: DB, season: str, days: i
     assign_referees(db, "LALIGA", rows, "laliga.com", now, days)
 
 
+# Greek Super League (shadow league GREEK): the Hellenic FA's refereeing committee publishes every round's
+# appointments on epo.gr, in Greek, with date, kickoff (Athens time) and both clubs. The same pages keep the season's
+# played rounds, so they fill finished matches too (ESPN lists no officials from Oct 2026).
+EPO_BASE = "https://www.epo.gr"
+_GR_DIGRAPHS = [("ου", "ou"), ("αυ", "av"), ("ευ", "ev"), ("ηυ", "iv"), ("μπ", "mp"), ("ντ", "nt"), ("γκ", "gk"),
+                ("γγ", "ng"), ("θ", "th"), ("χ", "ch"), ("ψ", "ps"), ("ξ", "x")]
+_GR_LETTERS = dict(zip("αβγδεζηικλμνοπρσςτυφω", "avgdezi" "iklmnoprsstyfo"))
+
+
+def greek_to_latin(text: str) -> str:
+    """'ΑΝΑΣΤΑΣΙΟΣ ΠΑΠΑΠΕΤΡΟΥ' -> 'Anastasios Papapetrou' (ELOT-style, as ESPN spells Greek officials).
+    Word-initial ΜΠ, ΝΤ, ΓΚ become B, D, G. Latin text passes through."""
+    s = "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+    words = []
+    for w in s.split():
+        for g, l in (("μπ", "b"), ("ντ", "d"), ("γκ", "g")):
+            if w.startswith(g):
+                w = l + w[2:]
+        for g, l in _GR_DIGRAPHS:
+            w = w.replace(g, l)
+        words.append("".join(_GR_LETTERS.get(c, c) for c in w))
+    return " ".join(w.capitalize() for w in words)
+
+
+def epo_club(name: str) -> str:
+    """'ΠΑΕ ΑΤΡΟΜΗΤΟΣ ΑΘ1923' -> 'Atromitos': club-company prefixes and founding years dropped."""
+    s = greek_to_latin(name.replace(".", " "))
+    drop = {"pae", "fc", "ae", "ps", "nps", "ath", "p", "a", "e", "o", "t"}  # ΠΑΕ, Π.Α.Ε., Π.Ο.Τ., ΑΕ, ΠΣ, ΝΠΣ
+    words = [w for w in re.sub(r"\d+", " ", s).split() if w.lower() not in drop]
+    return " ".join(words) or s
+
+
+def epo_rows(page_html: str) -> list[tuple[str, str, datetime, str]]:
+    """(home, away, kickoff UTC, referee) from one round's table on epo.gr."""
+    out = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", page_html, re.S):
+        cells = [html.unescape(re.sub(r"<[^>]+>", " ", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        cells = [" ".join(c.split()) for c in cells]
+        if len(cells) < 7 or not re.fullmatch(r"\d{2}/\d{2}/\d{4}", cells[1]) or not re.fullmatch(r"\d{1,2}:\d{2}", cells[2]):
+            continue
+        local = datetime.strptime(f"{cells[1]} {cells[2]}", "%d/%m/%Y %H:%M").replace(tzinfo=ZoneInfo("Europe/Athens"))
+        if cells[6]:
+            out.append((cells[4], cells[5], local.astimezone(timezone.utc), cells[6]))
+    return out
+
+
+async def load_greek_referees(ctx: BrowserContext, db: DB, season: str, days: int) -> None:
+    """Every round of the season on epo.gr: referees for finished GREEK matches that have none and for upcoming
+    ones. Clubs are matched by transliterated name, else by kickoff time and the other club (alias saved)."""
+    sid = db.season_of("GREEK", season)
+    landing = await fetch_text(ctx, f"{EPO_BASE}/el/referees-assignments")
+    stage = re.search(r"/el/competition/1/stage/(\d+)/match-referees", landing or "")
+    if sid is None or not stage:
+        log.warning("epo.gr: no Super League referee pages found")
+        return
+    first = await fetch_text(ctx, f"{EPO_BASE}/el/competition/1/stage/{stage.group(1)}/match-referees/per-matchweek")
+    rounds = [html.unescape(u) for u in re.findall(r'<option value="(/el/competition/1/stage/\d+/match-referees/'
+                                                     r'per-matchweek\?[^"]+)"', first or "")]
+    matches = db.q("""SELECT match_id, home_team_id, away_team_id, kickoff_utc, referee_id, status FROM matches
+                      WHERE season_id = ?""", sid)
+    resolver = TeamResolver(db, db.season_teams(sid))
+    by_pair = {(h, a): (m, k, r) for m, h, a, k, r, _ in matches}
+    filled = upcoming = 0
+    for url in dict.fromkeys(rounds):
+        for home, away, ko, ref in epo_rows(await fetch_text(ctx, EPO_BASE + url) or ""):
+            hn, an = epo_club(home), epo_club(away)
+            h, a = resolver.resolve(hn, "epo.gr", warn=False), resolver.resolve(an, "epo.gr", warn=False)
+            hit = by_pair.get((h, a))
+            if hit is None:  # one club recognised and the kickoff within 15 minutes: that's the match
+                near = [(m, mh, ma, k, r) for m, mh, ma, k, r, _ in matches
+                        if abs((datetime.strptime(k, ISO).replace(tzinfo=timezone.utc) - ko).total_seconds()) <= 900
+                        and (mh == h or ma == a)]
+                if len(near) != 1:
+                    if h is None or a is None:
+                        log.warning("Unmatched team %r from epo.gr; add it to name_aliases", home if h is None else away)
+                    continue
+                m, mh, ma, k, r = near[0]
+                for raw, got, tid in ((hn, h, mh), (an, a, ma)):
+                    if got is None:
+                        db.alias_save("epo.gr", "team", raw, tid)
+                hit = (m, k, r)
+            mid, k, current = hit
+            if current is not None:
+                continue
+            db.con.execute("UPDATE matches SET referee_id = ? WHERE match_id = ?",
+                           (db.referee_id(greek_to_latin(ref), "Greece", "epo.gr"), mid))
+            if k < datetime.now(timezone.utc).strftime(ISO):
+                filled += 1
+            else:
+                upcoming += 1
+    db.commit()
+    log.info("GREEK referees from epo.gr: %d played matches filled, %d upcoming assigned", filled, upcoming)
+
+
 # ───────────────────────────── Orchestration ─────────────────────────────
 async def _gather_logged(label: str, coros) -> None:
     for res in await asyncio.gather(*coros, return_exceptions=True):
@@ -1310,7 +1404,8 @@ async def run(args: argparse.Namespace) -> None:
                                         viewport={"width": 1440, "height": 900})
         await ctx.route("**/*", _block_heavy)
         feeds = {"EPL": load_pl_referees, "SPL": load_sfa_referees, "BUNDES": load_dfb_referees,
-                 "SERIEA": load_seriea_referees, "LIGUE1": load_ligue1_referees, "LALIGA": load_laliga_referees}
+                 "SERIEA": load_seriea_referees, "LIGUE1": load_ligue1_referees, "LALIGA": load_laliga_referees,
+                 "GREEK": load_greek_referees}
         try:
             if args.referees_only:  # quick refresh before pricing (log-a-bet): appointed referees only
                 await _gather_logged("Referee feeds", (feeds[c](ctx, db, args.season, args.days)
