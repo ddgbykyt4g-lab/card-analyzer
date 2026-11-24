@@ -1319,16 +1319,19 @@ def epo_club(name: str) -> str:
 
 
 def epo_rows(page_html: str) -> list[tuple[str, str, datetime, str]]:
-    """(home, away, kickoff UTC, referee) from one round's table on epo.gr."""
+    """(home, away, kickoff UTC, referee) from one round's table on epo.gr. Cells are read by their class
+    (national-referees-table--date, --time, --hometeam, --guest, and the first --referee, the referee proper)."""
     out = []
     for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", page_html, re.S):
-        cells = [html.unescape(re.sub(r"<[^>]+>", " ", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
-        cells = [" ".join(c.split()) for c in cells]
-        if len(cells) < 7 or not re.fullmatch(r"\d{2}/\d{2}/\d{4}", cells[1]) or not re.fullmatch(r"\d{1,2}:\d{2}", cells[2]):
+        cells: dict[str, str] = {}
+        for cls, val in re.findall(r'class="national-referees-table--(\w+)"[^>]*>(.*?)</t[dh]>', tr, re.S):
+            cells.setdefault(cls, " ".join(html.unescape(re.sub(r"<[^>]+>", " ", val)).split()))
+        need = ("date", "time", "hometeam", "guest", "referee")
+        if not all(cells.get(k) for k in need) or not re.fullmatch(r"\d{2}/\d{2}/\d{4}", cells["date"]):
             continue
-        local = datetime.strptime(f"{cells[1]} {cells[2]}", "%d/%m/%Y %H:%M").replace(tzinfo=ZoneInfo("Europe/Athens"))
-        if cells[6]:
-            out.append((cells[4], cells[5], local.astimezone(timezone.utc), cells[6]))
+        local = datetime.strptime(f"{cells['date']} {cells['time']}", "%d/%m/%Y %H:%M").replace(
+            tzinfo=ZoneInfo("Europe/Athens"))
+        out.append((cells["hometeam"], cells["guest"], local.astimezone(timezone.utc), cells["referee"]))
     return out
 
 

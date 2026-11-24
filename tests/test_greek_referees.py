@@ -19,12 +19,18 @@ def test_club_names_lose_company_prefixes_and_years():
 
 
 ROW = """<table><tr><th>Αγωνιστική</th></tr>
-<tr><td>11.1</td><td>22/11/2026</td><td>17:30</td><td>ΟΛΥΜΠΙΑΚΟ ΣΤΑΔΙΟ</td><td>ΠΑΕ ΠΑΝΑΘΗΝΑΙΚΟΣ</td>
-<td>ΠΑΕ ΟΦΗ 1925</td><td>ΑΝΑΣΤΑΣΙΟΣ ΠΑΠΑΠΕΤΡΟΥ</td><td>ΑΘΗΝΩΝ</td></tr>
-<tr><td>11.1</td><td>23/11/2026</td><td>17:00</td><td>Χ</td><td>ASTERAS AKTOR FC</td><td>ΠΑΕ  ΑΡΗΣ</td><td></td></tr></table>"""
+<tr><th class="national-referees-table--sheet">11.1</th>
+<td class="national-referees-table--date">22/11/2026</td><td class="national-referees-table--time">17:30</td>
+<td class="national-referees-table--cort">ΟΛΥΜΠΙΑΚΟ ΣΤΑΔΙΟ</td><td class="national-referees-table--hometeam">ΠΑΕ ΠΑΝΑΘΗΝΑΙΚΟΣ</td>
+<td class="national-referees-table--guest">ΠΑΕ ΟΦΗ 1925</td>
+<td class="national-referees-table--referee">ΑΝΑΣΤΑΣΙΟΣ ΠΑΠΑΠΕΤΡΟΥ</td><td class="national-referees-table--association">ΑΘΗΝΩΝ</td>
+<td class="national-referees-table--referee">ΤΡΥΦΩΝΑΣ ΠΕΤΡΟΠΟΥΛΟΣ</td></tr>
+<tr><th class="national-referees-table--sheet">11.1</th><td class="national-referees-table--date">23/11/2026</td>
+<td class="national-referees-table--time">17:00</td><td class="national-referees-table--hometeam">ASTERAS AKTOR FC</td>
+<td class="national-referees-table--guest">ΠΑΕ  ΑΡΗΣ</td><td class="national-referees-table--referee"></td></tr></table>"""
 
 
 def test_round_table_rows_give_teams_kickoff_in_utc_and_referee():
     rows = cc.epo_rows(ROW)
     assert rows == [("ΠΑΕ ΠΑΝΑΘΗΝΑΙΚΟΣ", "ΠΑΕ ΟΦΗ 1925", datetime(2026, 11, 22, 15, 30, tzinfo=timezone.utc),
-                     "ΑΝΑΣΤΑΣΙΟΣ ΠΑΠΑΠΕΤΡΟΥ")]   # Athens is UTC+2 in November; a row with no referee is skipped
+                     "ΑΝΑΣΤΑΣΙΟΣ ΠΑΠΑΠΕΤΡΟΥ")]   # Athens is UTC+2 in November; the first referee cell (not the assistant's); a row with no referee is skipped

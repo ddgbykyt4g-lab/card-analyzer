@@ -17,3 +17,15 @@ close in all five (over 3.5 projected v actual within 1.1 points). Caveat: ESPN 
 Greece or Turkey, so two-yellow dismissals there count as one straight red (at most about 0.07 cards a match low;
 model and baseline see the same data). Next: Sky Bet must offer card markets for Greece and Belgium, then a few
 weeks of price checks against `tier1.db` before any bet.
+
+## Greek referees (24 Nov 2026)
+
+Every finished Greek match from 2022-23 now has its referee: ESPN summaries to Sept 2026 (976 matches), then
+epo.gr, the Hellenic FA's appointment pages (45 matches from Oct 2026; also upcoming rounds once announced,
+`collect_cards.load_greek_referees`, names transliterated as ESPN spells them). Split records merged by alias:
+Spyridon Zabalas (ESPN also "Zamplalas", epo.gr "Zampalas"), Konstantinos Katikos (ESPN also "Katoikos").
+worldfootball.net, another historical source, refuses automated requests (403) and was left alone.
+
+Backtest with referees: Greece +0.0357 a match (CI +0.014 to +0.059) against +0.0356 without. Referees add
+nothing measurable in Greece, unlike the six live leagues (where they improved every untuned season). The Greek
+edge comes from team discipline, provocation, fouls and match odds.
