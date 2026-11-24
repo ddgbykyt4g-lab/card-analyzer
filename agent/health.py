@@ -3,7 +3,8 @@
 
 The collector logs source failures and carries on, so a green GitHub run can still mean stale data.
 Checks: results missing for matches played 2-10 days ago, source errors in the collector log, bets left
-pending well after kickoff, matches about to kick off with no referee, football-data and ESPN counting
+pending well after kickoff, matches about to kick off with no referee, recent finished matches with no
+referee (3+ in a league in 14 days), football-data and ESPN counting
 different cards (a staked bet they'd settle differently, or several matches in one league).
 Prints "OK" or one problem per line; exit code is always 0.
 Usage: python agent/health.py cards.db [collector.log] [espn_cards.csv]
@@ -22,6 +23,7 @@ LOG_PROBLEMS = re.compile(r"Traceback|step failed|no rows at|fixtures\.csv unava
                           r"HTTP [45]\d\d|giving up")
 # Hours ahead by which each league has named its referees (La Liga: the day before, by 16:00 Madrid)
 REF_HOURS = {"EPL": 48, "SPL": 48, "BUNDES": 48, "SERIEA": 48, "LIGUE1": 48, "LALIGA": 18}
+MISSING_REFS = 3  # finished matches in 14 days with no referee, per league, before it's flagged
 STALE_RESULTS = 3  # more unfinished matches than this from 2-10 days ago means results stopped arriving
 # football-data and ESPN differ on about 1 match in 15, so one or two a league in 10 days is normal
 SOURCE_GAP = 4
@@ -74,6 +76,16 @@ def problems(db: str, log: str | None, now: datetime, espn: dict[str, dict] | No
         if n:
             out.append(f"{code}: {n} match(es) in the next {hours} hours have no referee. The referee feed may have "
                        "broken, so those prices use the league-average referee.")
+    # finished matches with no referee: the referee history the model learns from has a hole (ESPN, which used to
+    # fill these after the match, lists no officials from Oct 2026; La Liga is backfilled from laliga.com)
+    lo14 = (now - timedelta(days=14)).strftime(ISO)
+    for code, n in con.execute(
+            """SELECT l.code, COUNT(*) FROM matches m JOIN seasons s USING (season_id) JOIN leagues l USING (league_id)
+               WHERE m.status = 'finished' AND m.referee_id IS NULL AND m.kickoff_utc BETWEEN ? AND ?
+               GROUP BY l.code""", (lo14, now.strftime(ISO))):
+        if code in REF_HOURS and n >= MISSING_REFS:
+            out.append(f"{code}: {n} matches finished in the last 14 days have no referee, so the model's referee "
+                       "history has a gap. Check that league's referee feed.")
     con.close()
     if log:
         seen: dict[str, int] = {}

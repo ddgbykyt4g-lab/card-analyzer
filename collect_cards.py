@@ -1275,6 +1275,47 @@ async def load_laliga_referees(ctx: BrowserContext, db: DB, season: str, days: i
     assign_referees(db, "LALIGA", rows, "laliga.com", now, days)
 
 
+async def backfill_laliga_referees(ctx: BrowserContext, db: DB, season: str) -> int:
+    """Referees for finished La Liga matches that have none. load_laliga_referees only reads matches not yet
+    kicked off, and the RFEF names referees the day before, so a Sunday match is missed when no run lands
+    between Saturday afternoon and kickoff; ESPN, which used to fill those after the match, lists no officials
+    from Oct 2026. laliga.com still gives the referee of a played match (persons_role)."""
+    sid = db.season_of("LALIGA", season)
+    if sid is None:
+        return 0
+    todo = {mid: ko for mid, ko in db.q("""SELECT match_id, kickoff_utc FROM matches
+                                           WHERE season_id = ? AND status = 'finished' AND referee_id IS NULL""", sid)}
+    if not todo:
+        return 0
+    played = db.one("SELECT COUNT(*) FROM matches WHERE season_id = ? AND status = 'finished'", sid) or 0
+    resolver = TeamResolver(db, db.season_teams(sid))
+    key = f"contentLanguage=en&countryCode=GB&subscription-key={LALIGA_KEY}"
+    filled = 0
+    for week in range(1, played // 10 + 2):  # 10 matches a round
+        listing = await fetch_json(ctx, f"{LALIGA_API}/matches?subscriptionSlug=laliga-easports-{season[:4]}"
+                                        f"&week={week}&limit=20&{key}")
+        for m in (listing or {}).get("matches", []):
+            if m.get("status") == "PreMatch":
+                continue
+            h = resolver.resolve(m["home_team"]["nickname"], "laliga.com", warn=False)
+            a = resolver.resolve(m["away_team"]["nickname"], "laliga.com", warn=False)
+            mid = db.find_match(sid, h, a, m["date"][:10]) if h and a else None
+            if mid not in todo:
+                continue
+            detail = await fetch_json(ctx, f"{LALIGA_API}/matches/{m['slug']}?{key}")
+            if ref := laliga_referee((detail or {}).get("match")):
+                db.con.execute("UPDATE matches SET referee_id = ? WHERE match_id = ?",
+                               (db.referee_id(ref, LEAGUES["LALIGA"]["country"], "laliga.com"), mid))
+                filled += 1
+                del todo[mid]
+        if not todo:
+            break
+    db.commit()
+    log.info("LALIGA %s: %d finished matches given their referee from laliga.com, %d still without",
+             season, filled, len(todo))
+    return filled
+
+
 # ───────────────────────────── Orchestration ─────────────────────────────
 async def _gather_logged(label: str, coros) -> None:
     for res in await asyncio.gather(*coros, return_exceptions=True):
@@ -1311,6 +1352,8 @@ async def run(args: argparse.Namespace) -> None:
             await _gather_logged("Fixtures", [load_upcoming(ctx, db, args.leagues, args.season)])
             mark_stale(db)
             apply_espn_counts(db, read_espn_cards(args.espn_cards))  # before split_reds, which finishes the job
+            if "LALIGA" in args.leagues:  # ESPN no longer lists officials: fill played matches from laliga.com
+                await _gather_logged("La Liga referees", [backfill_laliga_referees(ctx, db, args.season)])
             if not args.no_espn:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))
