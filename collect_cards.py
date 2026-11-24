@@ -55,10 +55,17 @@ LEAGUES = {  # keys match leagues.code in the schema seed
     "LIGUE1": dict(fd_code="F1", espn_slug="fra.1", country="France"),
     "SPL": dict(fd_code="SC0", espn_slug="sco.1", country="Scotland"),
     "EFL1": dict(fd_code="E1", espn_slug="eng.2", country="England"),  # Championship
+    # Tier 1 candidates (23 Nov 2026): cards, fouls and 1X2 averages on football-data; ESPN lists no officials
+    # from Oct 2026, so live matches there would have no referee.
+    "ERED": dict(fd_code="N1", espn_slug="ned.1", country="Netherlands"),
+    "PRIM": dict(fd_code="P1", espn_slug="por.1", country="Portugal"),
+    "BELG": dict(fd_code="B1", espn_slug="bel.1", country="Belgium"),
+    "SUPERLIG": dict(fd_code="T1", espn_slug="tur.1", country="Turkey"),
+    "GREEK": dict(fd_code="G1", espn_slug="gre.1", country="Greece"),
 }
 # Shadow leagues: collected only when named with --leagues, into their own database (efl.db), so the live
 # model in cards.db never sees them. The Championship is being backtested and logged before any betting.
-SHADOW = {"EFL1"}
+SHADOW = {"EFL1", "ERED", "PRIM", "BELG", "SUPERLIG", "GREEK"}
 FD_BASE = "https://www.football-data.co.uk"
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 
@@ -1315,7 +1322,7 @@ async def run(args: argparse.Namespace) -> None:
             await _gather_logged("Fixtures", [load_upcoming(ctx, db, args.leagues, args.season)])
             mark_stale(db)
             apply_espn_counts(db, read_espn_cards(args.espn_cards))  # before split_reds, which finishes the job
-            if not args.no_espn:
+            if not args.no_espn and not args.no_referee_backfill:
                 await _gather_logged("ESPN",
                                      (backfill_referees(ctx, db, c, s) for c in args.leagues for s in seasons))
             if not args.no_espn:
@@ -1351,7 +1358,7 @@ def main() -> None:
     ap.add_argument("--no-cups", action="store_true", help="skip the cup/European fixture step")
     ap.add_argument("--days", type=int, default=10, help="how far ahead to load ESPN league fixtures")
     ap.add_argument("--leagues", nargs="+", default=[c for c in LEAGUES if c not in SHADOW], choices=list(LEAGUES),
-                    help="default: every league except the shadow ones (EFL1), which need their own --db")
+                    help="default: every league except the shadow ones (SHADOW), which need their own --db")
     ap.add_argument("--ref-url", action="append", default=[], help="referee appointment page (repeatable)")
     ap.add_argument("--referees-only", action="store_true",
                     help="only load appointed referees for upcoming fixtures (about a minute)")
@@ -1359,6 +1366,8 @@ def main() -> None:
                     help="one-off: redo every two-yellow split in the loaded seasons (use with --history)")
     ap.add_argument("--espn-cards", default=str(ESPN_CARDS), metavar="CSV",
                     help="where ESPN's card counts for recent matches are kept (cross-check for settlement)")
+    ap.add_argument("--no-referee-backfill", action="store_true",
+                    help="skip the per-match ESPN referee lookups (shadow leagues: about 1,500 requests a season)")
     ap.add_argument("--headed", action="store_true", help="visible browser; helps clear JS challenges")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
