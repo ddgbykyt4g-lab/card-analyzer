@@ -152,3 +152,19 @@ def test_espn_moneyline_reads_close_then_open():
     dec, provider = espn_moneyline(comp)
     assert provider == "draftkings"
     assert [round(x, 3) for x in dec] == [2.5, 3.2, round(1 + 100 / 120, 3)]
+
+
+def test_health_flags_finished_matches_left_without_referee(db, tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT / "agent"))
+    from health import MISSING_REFS, problems
+    for d in range(MISSING_REFS):   # recent finished matches, none with a referee
+        db.execute("""INSERT INTO matches (season_id, kickoff_utc, home_team_id, away_team_id, status)
+                      VALUES (1, ?, 1, 2, 'finished')""", (f"2026-10-0{d + 1}T15:00:00Z",))
+    db.commit()
+    db.close()
+    path = str(tmp_path / "t.db")
+    now = datetime(2026, 10, 9, 9, 0, tzinfo=timezone.utc)
+    assert any("finished in the last 14 days have no referee" in p for p in problems(path, None, now))
+    later = datetime(2026, 11, 9, 9, 0, tzinfo=timezone.utc)   # outside the 14 days
+    assert not any("finished in the last 14 days" in p for p in problems(path, None, later))
