@@ -90,6 +90,12 @@ jobs:
           python collect_cards.py --db cards.db --season ${{ steps.season.outputs.label }} --no-cups 2>&1 | tee /tmp/collect.log
           python settle.py --db cards.db --report | tee /tmp/settle.txt
 
+      - name: Log any queued bets (a waiting "Log a bet" run can be replaced by this one)
+        run: |
+          if ls data/bet_queue/*.json >/dev/null 2>&1; then
+            python agent/bet_queue.py run data/bet_queue /tmp/logged.json cards.db | tee /tmp/logged.txt
+          fi
+
       - name: Data health check
         if: always()
         run: python agent/health.py cards.db /tmp/collect.log | tee /tmp/health.txt
@@ -128,8 +134,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p data/last_run && echo "${{ steps.season.outputs.day }}" > data/last_run/saturday   # later attempts skip
           git add cards.db reports/ data/
+          git add -A data/bet_queue   # queued bets logged above
           git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
           git pull -q --rebase origin main && git push -q origin HEAD:main
+
+      - name: Confirm queued bets
+        if: always()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: '[ ! -s /tmp/logged.json ] || python3 agent/bet_queue.py notify /tmp/logged.json "${{ job.status }}"'
 
       - name: Phone alert
         if: always()
@@ -137,7 +150,7 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           if [ -s /tmp/sheet.json ]; then
-            python agent/free_summary.py /tmp/sheet.json /tmp/settle.txt > /tmp/alert.txt
+            python agent/free_summary.py /tmp/sheet.json /tmp/settle.txt --day ${{ steps.season.outputs.day }} > /tmp/alert.txt
             python review/experiment_a.py remind --db cards.db --hours 48 > /tmp/remind.txt || true
             [ ! -s /tmp/remind.txt ] || { echo; cat /tmp/remind.txt; } >> /tmp/alert.txt
             if [ "$(cat /tmp/health.txt 2>/dev/null)" = "OK" ]; then

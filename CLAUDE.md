@@ -70,6 +70,14 @@ right); ESPN was right in all 18, so from 2026-11-11 the database takes ESPN's c
   (`agent/bet_queue.py`): GitHub cancels a waiting run when a newer one arrives, and the newer run logs both.
   With no placed time, the time it was queued is used. Both workflows share the
   `cards-db` concurrency group so they never push `cards.db` at the same time.
+  A queued run in that group replaces a waiting one, so the daily and Saturday runs also log any queued bets.
+  Sessions (Claude) are outside the group: a `cards.db` pushed from a session while a workflow runs makes that
+  workflow's push fail (binary conflict) and its data is lost. From a session, log bets with the "Log a bet"
+  workflow (`actions_run_trigger`), not by pushing `cards.db`; push `cards.db` directly only after checking no
+  workflow is queued or running.
+- Backup scheduled tasks in the Claude session (07:13 UK Sun-Fri, 06:31 UK Sat) start `projections.yml` /
+  `saturday.yml` by `workflow_dispatch` if `data/last_run/<name>` isn't today's date and no run is queued or
+  running (GitHub's scheduler ran 10-16 hours late in Nov 2026). Manual runs skip the `due` guard.
 
 - `.github/workflows/projections.yml` (Sunday-Friday, first of three attempts at 02:47, 04:47, 07:47 UTC, guarded by
   `data/last_run/projections` the same way) and the Saturday run append the model's
