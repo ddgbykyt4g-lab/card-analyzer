@@ -1,74 +1,29 @@
-# Card prices · Sat 21 Nov
+# Card prices · Fri 27 Nov
 
-Updated 14:45 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
+Updated 11:56 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
 
 **[➕ Log a bet](https://github.com/ddgbykyt4g-lab/card-analyzer/actions/workflows/log-bet.yml)** (tap *Run workflow*)
 
 ## Today
 
-### 15:00 Bournemouth v Nott'm Forest · EPL
-Ref: A Herczeg (2 past matches) ⚠️ thin referee history
-Projected cards **4.1** (Bournemouth 1.9, Nott'm Forest 2.2)
+### 19:30 Werder Bremen v M'gladbach · BUNDES
+Ref: Felix Zwayer (75 past matches)
+Projected cards **3.9** (Werder Bremen 1.7, M'gladbach 2.3)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.39 | 4.68 |
-| 3.5 | 1.85 | 2.53 |
-| 4.5 | 2.77 | 1.72 |
-| 5.5 | 4.70 | 1.36 |
+| 2.5 | 1.43 | 4.26 |
+| 3.5 | 1.94 | 2.36 |
+| 4.5 | 3.00 | 1.64 |
+| 5.5 | 5.23 | 1.32 |
 
-Bournemouth cards, over at least: o0.5 1.28 · o1.5 1.95 · o2.5 3.79
+Werder Bremen cards, over at least: o0.5 1.33 · o1.5 2.18 · o2.5 4.62
 
-Nott'm Forest cards, over at least: o0.5 1.21 · o1.5 1.65 · o2.5 2.79
+M'gladbach cards, over at least: o0.5 1.20 · o1.5 1.63 · o2.5 2.71
 
-### 15:00 Aston Villa v Sunderland · EPL
-Ref: A Madley (109 past matches)
-Projected cards **4.5** (Aston Villa 1.8, Sunderland 2.7)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.31 | 6.09 |
-| 3.5 | 1.64 | 3.08 |
-| 4.5 | 2.30 | 1.98 |
-| 5.5 | 3.61 | 1.50 |
-
-Aston Villa cards, over at least: o0.5 1.30 · o1.5 2.02 · o2.5 4.04
-
-Sunderland cards, over at least: o0.5 1.16 · o1.5 1.43 · o2.5 2.12
-
-### 15:00 Chelsea v Leeds · EPL
-Ref: M Oliver (142 past matches)
-Projected cards **4.4** (Chelsea 1.8, Leeds 2.6)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.33 | 5.63 |
-| 3.5 | 1.69 | 2.90 |
-| 4.5 | 2.42 | 1.90 |
-| 5.5 | 3.88 | 1.45 |
-
-Chelsea cards, over at least: o0.5 1.29 · o1.5 1.98 · o2.5 3.90
-
-Leeds cards, over at least: o0.5 1.17 · o1.5 1.49 · o2.5 2.29
-
-### 15:00 Coventry v Crystal Palace · EPL
-Ref: D England (93 past matches)
-Projected cards **4.0** (Coventry 1.9, Crystal Palace 2.1)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.43 | 4.32 |
-| 3.5 | 1.93 | 2.39 |
-| 4.5 | 2.96 | 1.65 |
-| 5.5 | 5.14 | 1.33 |
-
-Coventry cards, over at least: o0.5 1.28 · o1.5 1.94 · o2.5 3.77
-
-Crystal Palace cards, over at least: o0.5 1.23 · o1.5 1.74 · o2.5 3.08
-
-### 15:00 Tottenham v Ipswich · EPL
-Ref: R Jones (106 past matches)
-Projected cards **3.9** (Tottenham 1.7, Ipswich 2.2)
+### 19:45 Venezia v Bologna · SERIEA
+Ref: Andrea Colombo (64 past matches)
+Projected cards **3.9** (Venezia 2.2, Bologna 1.7)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
@@ -77,58 +32,285 @@ Projected cards **3.9** (Tottenham 1.7, Ipswich 2.2)
 | 4.5 | 3.05 | 1.63 |
 | 5.5 | 5.37 | 1.31 |
 
-Tottenham cards, over at least: o0.5 1.31 · o1.5 2.09 · o2.5 4.28
+Venezia cards, over at least: o0.5 1.22 · o1.5 1.69 · o2.5 2.92
 
-Ipswich cards, over at least: o0.5 1.22 · o1.5 1.69 · o2.5 2.91
+Bologna cards, over at least: o0.5 1.31 · o1.5 2.08 · o2.5 4.25
 
-### 15:00 Celtic v St Mirren · SPL
-Ref: M MacDermid (70 past matches)
-Projected cards **3.7** (Celtic 1.4, St Mirren 2.3)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.51 | 3.69 |
-| 3.5 | 2.13 | 2.13 |
-| 4.5 | 3.44 | 1.53 |
-| 5.5 | 6.33 | 1.27 |
-
-Celtic cards, over at least: o0.5 1.42 · o1.5 2.60 · o2.5 6.28
-
-St Mirren cards, over at least: o0.5 1.20 · o1.5 1.62 · o2.5 2.71
-
-### 15:00 Falkirk v St Johnstone · SPL
-Ref: C Stirling (0 past matches) ⚠️ thin referee history
-Projected cards **3.8** (Falkirk 1.9, St Johnstone 2.0)
+### 19:45 Brest v Paris FC · LIGUE1
+Ref: Ruddy Buquet (68 past matches)
+Projected cards **4.0** (Brest 1.9, Paris FC 2.2)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.46 | 4.00 |
-| 3.5 | 2.02 | 2.26 |
-| 4.5 | 3.18 | 1.59 |
-| 5.5 | 5.67 | 1.30 |
+| 2.5 | 1.42 | 4.43 |
+| 3.5 | 1.90 | 2.43 |
+| 4.5 | 2.90 | 1.67 |
+| 5.5 | 5.00 | 1.34 |
 
-Falkirk cards, over at least: o0.5 1.28 · o1.5 1.95 · o2.5 3.79
+Brest cards, over at least: o0.5 1.28 · o1.5 1.95 · o2.5 3.81
 
-St Johnstone cards, over at least: o0.5 1.25 · o1.5 1.83 · o2.5 3.39
+Paris FC cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.96
 
-### 15:00 Hibernian v Dundee United · SPL
-Ref: J Beaton (109 past matches)
-Projected cards **4.2** (Hibernian 1.7, Dundee United 2.4)
+### 20:00 Nott'm Forest v Chelsea · EPL
+Ref: A Madley (110 past matches)
+Projected cards **4.9** (Nott'm Forest 2.8, Chelsea 2.1)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.38 | 4.84 |
-| 3.5 | 1.81 | 2.59 |
+| 2.5 | 1.25 | 7.69 |
+| 3.5 | 1.51 | 3.69 |
+| 4.5 | 2.02 | 2.26 |
+| 5.5 | 3.00 | 1.64 |
+
+Nott'm Forest cards, over at least: o0.5 1.15 · o1.5 1.41 · o2.5 2.04
+
+Chelsea cards, over at least: o0.5 1.24 · o1.5 1.76 · o2.5 3.16
+
+### 20:00 Levante v Santander · LALIGA
+Ref: Miguel Sesma Espinosa (27 past matches)
+Projected cards **4.6** (Levante 2.2, Santander 2.5)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.28 | 6.66 |
+| 3.5 | 1.58 | 3.30 |
+| 4.5 | 2.18 | 2.08 |
+| 5.5 | 3.35 | 1.55 |
+
+Levante cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.96
+
+Santander cards, over at least: o0.5 1.18 · o1.5 1.52 · o2.5 2.38
+
+## Saturday 28 Nov
+
+### 13:00 Betis v Vallecano · LALIGA
+⚠️ No referee yet: league average used
+Projected cards **4.2** (Betis 1.6, Vallecano 2.6)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.36 | 5.07 |
+| 3.5 | 1.77 | 2.69 |
+| 4.5 | 2.60 | 1.79 |
+| 5.5 | 4.30 | 1.40 |
+
+Betis cards, over at least: o0.5 1.36 · o1.5 2.29 · o2.5 5.04
+
+Vallecano cards, over at least: o0.5 1.16 · o1.5 1.46 · o2.5 2.20
+
+### 14:00 Frosinone v Parma · SERIEA
+Ref: Kevin Bonacina (19 past matches)
+Projected cards **3.3** (Frosinone 1.6, Parma 1.8)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.66 | 2.99 |
+| 3.5 | 2.52 | 1.84 |
+| 4.5 | 4.40 | 1.39 |
+| 5.5 | 8.82 | 1.20 |
+
+Frosinone cards, over at least: o0.5 1.37 · o1.5 2.33 · o2.5 5.21
+
+Parma cards, over at least: o0.5 1.30 · o1.5 2.03 · o2.5 4.09
+
+### 14:30 FC Koln v Elversberg · BUNDES
+Ref: Sören Storks (35 past matches)
+Projected cards **4.4** (FC Koln 2.2, Elversberg 2.2)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.33 | 5.58 |
+| 3.5 | 1.70 | 2.89 |
+| 4.5 | 2.43 | 1.89 |
+| 5.5 | 3.91 | 1.45 |
+
+FC Koln cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.96
+
+Elversberg cards, over at least: o0.5 1.21 · o1.5 1.66 · o2.5 2.82
+
+### 14:30 Hamburg v Bayern Munich · BUNDES
+Ref: Bastian Dankert (63 past matches)
+Projected cards **4.0** (Hamburg 1.7, Bayern Munich 2.3)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.43 | 4.29 |
+| 3.5 | 1.94 | 2.37 |
+| 4.5 | 2.98 | 1.65 |
+| 5.5 | 5.20 | 1.33 |
+
+Hamburg cards, over at least: o0.5 1.33 · o1.5 2.17 · o2.5 4.60
+
+Bayern Munich cards, over at least: o0.5 1.20 · o1.5 1.62 · o2.5 2.70
+
+### 14:30 Mainz v Union Berlin · BUNDES
+Ref: Timo Gerach (32 past matches)
+Projected cards **3.7** (Mainz 1.6, Union Berlin 2.0)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.51 | 3.66 |
+| 3.5 | 2.14 | 2.12 |
+| 4.5 | 3.47 | 1.52 |
+| 5.5 | 6.40 | 1.26 |
+
+Mainz cards, over at least: o0.5 1.34 · o1.5 2.20 · o2.5 4.72
+
+Union Berlin cards, over at least: o0.5 1.24 · o1.5 1.78 · o2.5 3.22
+
+### 14:30 Paderborn v Schalke 04 · BUNDES
+Ref: Florian Exner (27 past matches)
+Projected cards **4.0** (Paderborn 1.9, Schalke 04 2.1)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.41 | 4.44 |
+| 3.5 | 1.90 | 2.43 |
+| 4.5 | 2.89 | 1.68 |
+| 5.5 | 4.99 | 1.34 |
+
+Paderborn cards, over at least: o0.5 1.27 · o1.5 1.90 · o2.5 3.63
+
+Schalke 04 cards, over at least: o0.5 1.23 · o1.5 1.74 · o2.5 3.07
+
+### 15:00 Leeds v Coventry · EPL
+Ref: P Tierney (99 past matches)
+Projected cards **3.4** (Leeds 1.6, Coventry 1.9)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.62 | 3.17 |
+| 3.5 | 2.39 | 1.91 |
+| 4.5 | 4.09 | 1.43 |
+| 5.5 | 8.00 | 1.21 |
+
+Leeds cards, over at least: o0.5 1.36 · o1.5 2.33 · o2.5 5.19
+
+Coventry cards, over at least: o0.5 1.28 · o1.5 1.93 · o2.5 3.72
+
+### 15:00 Man United v Brentford · EPL
+Ref: R Jones (107 past matches)
+Projected cards **3.8** (Man United 1.7, Brentford 2.1)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.48 | 3.90 |
+| 3.5 | 2.05 | 2.22 |
+| 4.5 | 3.25 | 1.57 |
+| 5.5 | 5.86 | 1.29 |
+
+Man United cards, over at least: o0.5 1.32 · o1.5 2.12 · o2.5 4.41
+
+Brentford cards, over at least: o0.5 1.23 · o1.5 1.75 · o2.5 3.10
+
+### 15:00 Aberdeen v Dundee · SPL
+Ref: R Hardie (34 past matches)
+Projected cards **4.0** (Aberdeen 2.0, Dundee 1.9)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.43 | 4.33 |
+| 3.5 | 1.93 | 2.39 |
+| 4.5 | 2.96 | 1.65 |
+| 5.5 | 5.14 | 1.33 |
+
+Aberdeen cards, over at least: o0.5 1.24 · o1.5 1.78 · o2.5 3.21
+
+Dundee cards, over at least: o0.5 1.27 · o1.5 1.89 · o2.5 3.57
+
+### 15:00 Dundee United v St Johnstone · SPL
+Ref: M MacDermid (71 past matches)
+Projected cards **3.6** (Dundee United 1.7, St Johnstone 1.9)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.56 | 3.40 |
+| 3.5 | 2.26 | 2.01 |
+| 4.5 | 3.76 | 1.47 |
+| 5.5 | 7.13 | 1.24 |
+
+Dundee United cards, over at least: o0.5 1.33 · o1.5 2.17 · o2.5 4.58
+
+St Johnstone cards, over at least: o0.5 1.27 · o1.5 1.91 · o2.5 3.66
+
+### 15:00 Rangers v Falkirk · SPL
+Ref: R Lee (23 past matches)
+Projected cards **4.5** (Rangers 2.0, Falkirk 2.5)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.31 | 6.04 |
+| 3.5 | 1.64 | 3.07 |
+| 4.5 | 2.31 | 1.97 |
+| 5.5 | 3.64 | 1.49 |
+
+Rangers cards, over at least: o0.5 1.25 · o1.5 1.80 · o2.5 3.29
+
+Falkirk cards, over at least: o0.5 1.18 · o1.5 1.52 · o2.5 2.39
+
+### 15:00 St Mirren v Kilmarnock · SPL
+Ref: D Robertson (107 past matches)
+Projected cards **4.5** (St Mirren 2.0, Kilmarnock 2.5)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.31 | 5.97 |
+| 3.5 | 1.65 | 3.04 |
+| 4.5 | 2.33 | 1.96 |
+| 5.5 | 3.68 | 1.49 |
+
+St Mirren cards, over at least: o0.5 1.25 · o1.5 1.81 · o2.5 3.30
+
+Kilmarnock cards, over at least: o0.5 1.18 · o1.5 1.53 · o2.5 2.42
+
+### 15:15 Malaga v Ath Bilbao · LALIGA
+⚠️ No referee yet: league average used
+Projected cards **4.1** (Malaga 2.1, Ath Bilbao 2.1)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.38 | 4.83 |
+| 3.5 | 1.82 | 2.59 |
 | 4.5 | 2.70 | 1.75 |
-| 5.5 | 4.52 | 1.38 |
+| 5.5 | 4.53 | 1.38 |
 
-Hibernian cards, over at least: o0.5 1.31 · o1.5 2.10 · o2.5 4.32
+Malaga cards, over at least: o0.5 1.23 · o1.5 1.76 · o2.5 3.13
 
-Dundee United cards, over at least: o0.5 1.19 · o1.5 1.55 · o2.5 2.48
+Ath Bilbao cards, over at least: o0.5 1.24 · o1.5 1.76 · o2.5 3.16
 
-### 15:00 Kilmarnock v Aberdeen · SPL
-Ref: N Walsh (116 past matches)
-Projected cards **4.5** (Kilmarnock 2.3, Aberdeen 2.3)
+### 16:15 Angers v Lens · LIGUE1
+Ref: Romain Lissorgue (46 past matches)
+Projected cards **3.2** (Angers 1.6, Lens 1.6)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.74 | 2.77 |
+| 3.5 | 2.71 | 1.75 |
+| 4.5 | 4.90 | 1.35 |
+| 5.5 | 10.19 | 1.17 |
+
+Angers cards, over at least: o0.5 1.36 · o1.5 2.30 · o2.5 5.07
+
+Lens cards, over at least: o0.5 1.35 · o1.5 2.24 · o2.5 4.87
+
+### 17:00 Torino v Lazio · SERIEA
+Ref: Daniele Chiffi (64 past matches)
+Projected cards **3.5** (Torino 1.9, Lazio 1.6)
+
+| Cards | Over at least | Under at least |
+|---|---|---|
+| 2.5 | 1.57 | 3.35 |
+| 3.5 | 2.29 | 1.99 |
+| 4.5 | 3.83 | 1.46 |
+| 5.5 | 7.32 | 1.23 |
+
+Torino cards, over at least: o0.5 1.26 · o1.5 1.87 · o2.5 3.51
+
+Lazio cards, over at least: o0.5 1.35 · o1.5 2.28 · o2.5 5.00
+
+### 17:30 Ipswich v Aston Villa · EPL
+Ref: M Salisbury (65 past matches)
+Projected cards **4.5** (Ipswich 2.5, Aston Villa 2.1)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
@@ -137,478 +319,178 @@ Projected cards **4.5** (Kilmarnock 2.3, Aberdeen 2.3)
 | 4.5 | 2.28 | 2.00 |
 | 5.5 | 3.57 | 1.51 |
 
-Kilmarnock cards, over at least: o0.5 1.20 · o1.5 1.63 · o2.5 2.73
+Ipswich cards, over at least: o0.5 1.18 · o1.5 1.53 · o2.5 2.42
 
-Aberdeen cards, over at least: o0.5 1.20 · o1.5 1.63 · o2.5 2.73
+Aston Villa cards, over at least: o0.5 1.24 · o1.5 1.76 · o2.5 3.15
 
-### 15:15 Vallecano v Valencia · LALIGA
-Ref: José Luis Munuera Montero (86 past matches)
-Projected cards **4.6** (Vallecano 2.0, Valencia 2.5)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.30 | 6.27 |
-| 3.5 | 1.62 | 3.15 |
-| 4.5 | 2.26 | 2.01 |
-| 5.5 | 3.52 | 1.51 |
-
-Vallecano cards, over at least: o0.5 1.24 · o1.5 1.79 · o2.5 3.26
-
-Valencia cards, over at least: o0.5 1.17 · o1.5 1.50 · o2.5 2.33
-
-### 16:15 Nice v Paris SG · LIGUE1
-Ref: Jerome Brisard (85 past matches)
-Projected cards **2.7** (Nice 1.7, Paris SG 1.1)
+### 17:30 Elche v Ath Madrid · LALIGA
+⚠️ No referee yet: league average used
+Projected cards **4.2** (Elche 2.0, Ath Madrid 2.2)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 2.09 | 2.18 |
-| 3.5 | 3.65 | 1.49 |
-| 4.5 | 7.49 | 1.23 |
-| 5.5 | 17.83 | 1.12 |
+| 2.5 | 1.37 | 4.95 |
+| 3.5 | 1.79 | 2.64 |
+| 4.5 | 2.65 | 1.77 |
+| 5.5 | 4.41 | 1.39 |
 
-Nice cards, over at least: o0.5 1.34 · o1.5 2.19 · o2.5 4.68
+Elche cards, over at least: o0.5 1.25 · o1.5 1.83 · o2.5 3.37
 
-Paris SG cards, over at least: o0.5 1.62 · o1.5 3.62 · o2.5 11.00
+Ath Madrid cards, over at least: o0.5 1.22 · o1.5 1.68 · o2.5 2.87
 
-### 17:00 Parma v Roma · SERIEA
-Ref: Simone Sozza (64 past matches)
-Projected cards **3.1** (Parma 1.6, Roma 1.5)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.80 | 2.62 |
-| 3.5 | 2.88 | 1.68 |
-| 4.5 | 5.35 | 1.32 |
-| 5.5 | 11.46 | 1.16 |
-
-Parma cards, over at least: o0.5 1.36 · o1.5 2.31 · o2.5 5.14
-
-Roma cards, over at least: o0.5 1.38 · o1.5 2.40 · o2.5 5.46
-
-### 17:30 Newcastle v Arsenal · EPL
-Ref: C Kavanagh (112 past matches)
-Projected cards **4.4** (Newcastle 2.7, Arsenal 1.6)
+### 17:30 Stuttgart v Ein Frankfurt · BUNDES
+Ref: Sascha Stegemann (65 past matches)
+Projected cards **3.7** (Stuttgart 1.5, Ein Frankfurt 2.2)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.33 | 5.56 |
-| 3.5 | 1.70 | 2.88 |
-| 4.5 | 2.44 | 1.88 |
-| 5.5 | 3.93 | 1.45 |
+| 2.5 | 1.52 | 3.64 |
+| 3.5 | 2.15 | 2.11 |
+| 4.5 | 3.49 | 1.52 |
+| 5.5 | 6.44 | 1.26 |
 
-Newcastle cards, over at least: o0.5 1.15 · o1.5 1.42 · o2.5 2.09
+Stuttgart cards, over at least: o0.5 1.38 · o1.5 2.40 · o2.5 5.46
 
-Arsenal cards, over at least: o0.5 1.34 · o1.5 2.23 · o2.5 4.82
+Ein Frankfurt cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.95
 
-### 17:30 Sevilla v Betis · LALIGA
-Ref: José María Sánchez Martínez (85 past matches)
-Projected cards **5.0** (Sevilla 2.8, Betis 2.2)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.24 | 8.22 |
-| 3.5 | 1.48 | 3.89 |
-| 4.5 | 1.95 | 2.35 |
-| 5.5 | 2.86 | 1.69 |
-
-Sevilla cards, over at least: o0.5 1.15 · o1.5 1.40 · o2.5 2.03
-
-Betis cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.96
-
-### 17:30 Schalke 04 v Stuttgart · BUNDES
-Ref: Daniel Siebert (72 past matches)
-Projected cards **3.7** (Schalke 04 2.0, Stuttgart 1.7)
+### 17:45 Motherwell v Hibernian · SPL
+Ref: D Dickinson (91 past matches)
+Projected cards **4.1** (Motherwell 2.0, Hibernian 2.2)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.51 | 3.68 |
-| 3.5 | 2.14 | 2.12 |
-| 4.5 | 3.45 | 1.53 |
-| 5.5 | 6.36 | 1.26 |
+| 2.5 | 1.38 | 4.78 |
+| 3.5 | 1.83 | 2.57 |
+| 4.5 | 2.72 | 1.74 |
+| 5.5 | 4.59 | 1.37 |
 
-Schalke 04 cards, over at least: o0.5 1.25 · o1.5 1.82 · o2.5 3.36
+Motherwell cards, over at least: o0.5 1.25 · o1.5 1.84 · o2.5 3.40
 
-Stuttgart cards, over at least: o0.5 1.32 · o1.5 2.12 · o2.5 4.42
+Hibernian cards, over at least: o0.5 1.22 · o1.5 1.71 · o2.5 2.97
 
-### 17:45 Dundee v Hearts · SPL
-Ref: S McLean (86 past matches)
-Projected cards **4.4** (Dundee 2.4, Hearts 2.0)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.33 | 5.53 |
-| 3.5 | 1.70 | 2.87 |
-| 4.5 | 2.45 | 1.88 |
-| 5.5 | 3.95 | 1.45 |
-
-Dundee cards, over at least: o0.5 1.19 · o1.5 1.59 · o2.5 2.58
-
-Hearts cards, over at least: o0.5 1.25 · o1.5 1.81 · o2.5 3.32
-
-### 19:45 Napoli v Torino · SERIEA
-Ref: Marco Di Bello (58 past matches)
-Projected cards **2.6** (Napoli 1.0, Torino 1.6)
+### 19:45 Inter v Genoa · SERIEA
+Ref: Giovanni Ayroldi (48 past matches)
+Projected cards **3.1** (Inter 1.5, Genoa 1.6)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 2.24 | 2.03 |
-| 3.5 | 4.09 | 1.43 |
-| 4.5 | 8.80 | 1.20 |
-| 5.5 | 21.98 | 1.10 |
+| 2.5 | 1.82 | 2.58 |
+| 3.5 | 2.93 | 1.66 |
+| 4.5 | 5.48 | 1.31 |
+| 5.5 | 11.81 | 1.16 |
 
-Napoli cards, over at least: o0.5 1.71 · o1.5 4.12 · o2.5 13.64
+Inter cards, over at least: o0.5 1.40 · o1.5 2.50 · o2.5 5.89
 
-Torino cards, over at least: o0.5 1.35 · o1.5 2.26 · o2.5 4.94
+Genoa cards, over at least: o0.5 1.35 · o1.5 2.27 · o2.5 4.96
 
-### 19:45 Monaco v Auxerre · LIGUE1
-Ref: Jeremy Stinat (84 past matches)
-Projected cards **3.6** (Monaco 1.5, Auxerre 2.1)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.57 | 3.37 |
-| 3.5 | 2.28 | 2.00 |
-| 4.5 | 3.80 | 1.47 |
-| 5.5 | 7.24 | 1.23 |
-
-Monaco cards, over at least: o0.5 1.41 · o1.5 2.54 · o2.5 6.03
-
-Auxerre cards, over at least: o0.5 1.23 · o1.5 1.74 · o2.5 3.08
-
-### 19:45 Lens v Toulouse · LIGUE1
-Ref: Bastien Dechepy (73 past matches)
-Projected cards **4.1** (Lens 1.8, Toulouse 2.3)
+### 19:45 Le Havre v Strasbourg · LIGUE1
+Ref: Geoffrey Kubler (4 past matches) ⚠️ thin referee history
+Projected cards **4.5** (Le Havre 2.1, Strasbourg 2.4)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.39 | 4.69 |
-| 3.5 | 1.84 | 2.54 |
-| 4.5 | 2.76 | 1.72 |
-| 5.5 | 4.68 | 1.36 |
+| 2.5 | 1.31 | 6.08 |
+| 3.5 | 1.64 | 3.08 |
+| 4.5 | 2.30 | 1.98 |
+| 5.5 | 3.62 | 1.50 |
 
-Lens cards, over at least: o0.5 1.30 · o1.5 2.02 · o2.5 4.05
+Le Havre cards, over at least: o0.5 1.22 · o1.5 1.71 · o2.5 2.99
 
-Toulouse cards, over at least: o0.5 1.20 · o1.5 1.61 · o2.5 2.65
+Strasbourg cards, over at least: o0.5 1.19 · o1.5 1.58 · o2.5 2.56
 
-### 19:45 Lille v Lyon · LIGUE1
-Ref: Francois Letexier (78 past matches)
-Projected cards **4.2** (Lille 2.1, Lyon 2.1)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.37 | 5.02 |
-| 3.5 | 1.78 | 2.67 |
-| 4.5 | 2.62 | 1.79 |
-| 5.5 | 4.35 | 1.40 |
-
-Lille cards, over at least: o0.5 1.24 · o1.5 1.77 · o2.5 3.17
-
-Lyon cards, over at least: o0.5 1.22 · o1.5 1.71 · o2.5 2.98
-
-### 19:45 Strasbourg v Brest · LIGUE1
-Ref: Azzedine Souifi (4 past matches) ⚠️ thin referee history
-Projected cards **3.8** (Strasbourg 1.8, Brest 2.0)
+### 19:45 Le Mans v Lille · LIGUE1
+Ref: Mathieu Vernice (63 past matches)
+Projected cards **4.1** (Le Mans 2.3, Lille 1.8)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.47 | 3.94 |
-| 3.5 | 2.04 | 2.23 |
-| 4.5 | 3.22 | 1.58 |
-| 5.5 | 5.78 | 1.29 |
+| 2.5 | 1.40 | 4.59 |
+| 3.5 | 1.87 | 2.49 |
+| 4.5 | 2.81 | 1.70 |
+| 5.5 | 4.80 | 1.35 |
 
-Strasbourg cards, over at least: o0.5 1.29 · o1.5 1.98 · o2.5 3.90
+Le Mans cards, over at least: o0.5 1.21 · o1.5 1.63 · o2.5 2.74
 
-Brest cards, over at least: o0.5 1.25 · o1.5 1.83 · o2.5 3.37
+Lille cards, over at least: o0.5 1.29 · o1.5 2.01 · o2.5 4.01
 
-### 20:00 Real Madrid v Celta · LALIGA
-Ref: Adrián Cordero Vega (46 past matches)
-Projected cards **3.9** (Real Madrid 1.4, Celta 2.5)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.44 | 4.24 |
-| 3.5 | 1.95 | 2.35 |
-| 4.5 | 3.01 | 1.64 |
-| 5.5 | 5.28 | 1.32 |
-
-Real Madrid cards, over at least: o0.5 1.43 · o1.5 2.61 · o2.5 6.34
-
-Celta cards, over at least: o0.5 1.17 · o1.5 1.51 · o2.5 2.34
-
-### 20:00 Motherwell v Rangers · SPL
-Ref: D Robertson (107 past matches)
-Projected cards **4.0** (Motherwell 2.1, Rangers 1.9)
+### 19:45 Nice v Troyes · LIGUE1
+Ref: Aurelien Petit (5 past matches) ⚠️ thin referee history
+Projected cards **3.4** (Nice 1.6, Troyes 1.8)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.42 | 4.40 |
-| 3.5 | 1.91 | 2.42 |
-| 4.5 | 2.91 | 1.67 |
-| 5.5 | 5.04 | 1.34 |
+| 2.5 | 1.64 | 3.07 |
+| 3.5 | 2.46 | 1.87 |
+| 4.5 | 4.25 | 1.41 |
+| 5.5 | 8.42 | 1.20 |
 
-Motherwell cards, over at least: o0.5 1.24 · o1.5 1.76 · o2.5 3.16
+Nice cards, over at least: o0.5 1.34 · o1.5 2.21 · o2.5 4.76
 
-Rangers cards, over at least: o0.5 1.26 · o1.5 1.88 · o2.5 3.55
+Troyes cards, over at least: o0.5 1.31 · o1.5 2.07 · o2.5 4.22
 
-## Sunday 22 Nov
-
-### 11:30 Juventus v Venezia · SERIEA
-Ref: Alberto Arena (15 past matches)
-Projected cards **2.7** (Juventus 1.1, Venezia 1.7)
+### 19:45 Paris SG v Lorient · LIGUE1
+Ref: Bastien Dechepy (74 past matches)
+Projected cards **2.7** (Paris SG 1.1, Lorient 1.5)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 2.09 | 2.17 |
-| 3.5 | 3.65 | 1.49 |
-| 4.5 | 7.51 | 1.23 |
-| 5.5 | 17.89 | 1.12 |
+| 2.5 | 2.14 | 2.12 |
+| 3.5 | 3.80 | 1.47 |
+| 4.5 | 7.94 | 1.22 |
+| 5.5 | 19.24 | 1.11 |
 
-Juventus cards, over at least: o0.5 1.65 · o1.5 3.73 · o2.5 11.58
+Paris SG cards, over at least: o0.5 1.58 · o1.5 3.41 · o2.5 9.94
 
-Venezia cards, over at least: o0.5 1.33 · o1.5 2.16 · o2.5 4.57
+Lorient cards, over at least: o0.5 1.37 · o1.5 2.36 · o2.5 5.31
 
-### 13:00 Barcelona v Villarreal · LALIGA
-Ref: Alejandro José Hernández Hernández (83 past matches)
-Projected cards **3.9** (Barcelona 1.6, Villarreal 2.3)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.44 | 4.17 |
-| 3.5 | 1.97 | 2.33 |
-| 4.5 | 3.05 | 1.62 |
-| 5.5 | 5.38 | 1.31 |
-
-Barcelona cards, over at least: o0.5 1.36 · o1.5 2.30 · o2.5 5.09
-
-Villarreal cards, over at least: o0.5 1.20 · o1.5 1.60 · o2.5 2.63
-
-### 14:00 Hull v Brighton · EPL
-Ref: P Bankes (94 past matches)
-Projected cards **3.5** (Hull 2.0, Brighton 1.5)
+### 20:00 Real Madrid v Alaves · LALIGA
+⚠️ No referee yet: league average used
+Projected cards **4.3** (Real Madrid 1.4, Alaves 2.9)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.60 | 3.23 |
-| 3.5 | 2.35 | 1.94 |
-| 4.5 | 3.99 | 1.44 |
-| 5.5 | 7.73 | 1.22 |
+| 2.5 | 1.34 | 5.37 |
+| 3.5 | 1.73 | 2.80 |
+| 4.5 | 2.50 | 1.85 |
+| 5.5 | 4.06 | 1.43 |
 
-Hull cards, over at least: o0.5 1.26 · o1.5 1.85 · o2.5 3.44
+Real Madrid cards, over at least: o0.5 1.42 · o1.5 2.56 · o2.5 6.14
 
-Brighton cards, over at least: o0.5 1.39 · o1.5 2.42 · o2.5 5.56
+Alaves cards, over at least: o0.5 1.14 · o1.5 1.38 · o2.5 1.97
 
-### 14:00 Bologna v Udinese · SERIEA
-Ref: Livio Marinelli (52 past matches)
-Projected cards **3.8** (Bologna 1.4, Udinese 2.4)
+## Sunday 29 Nov
 
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.48 | 3.87 |
-| 3.5 | 2.06 | 2.20 |
-| 4.5 | 3.28 | 1.57 |
-| 5.5 | 5.92 | 1.28 |
-
-Bologna cards, over at least: o0.5 1.42 · o1.5 2.58 · o2.5 6.21
-
-Udinese cards, over at least: o0.5 1.19 · o1.5 1.58 · o2.5 2.58
-
-### 14:00 Sassuolo v Genoa · SERIEA
-Ref: Maria Ferrieri Caputi (16 past matches)
-Projected cards **4.3** (Sassuolo 2.2, Genoa 2.1)
+### 11:30 Udinese v Fiorentina · SERIEA
+Ref: Federico La Penna (55 past matches)
+Projected cards **3.9** (Udinese 2.1, Fiorentina 1.8)
 
 | Cards | Over at least | Under at least |
 |---|---|---|
-| 2.5 | 1.35 | 5.18 |
-| 3.5 | 1.75 | 2.73 |
-| 4.5 | 2.56 | 1.82 |
-| 5.5 | 4.21 | 1.41 |
+| 2.5 | 1.46 | 4.04 |
+| 3.5 | 2.01 | 2.27 |
+| 4.5 | 3.15 | 1.60 |
+| 5.5 | 5.60 | 1.30 |
 
-Sassuolo cards, over at least: o0.5 1.22 · o1.5 1.69 · o2.5 2.93
+Udinese cards, over at least: o0.5 1.24 · o1.5 1.76 · o2.5 3.16
 
-Genoa cards, over at least: o0.5 1.23 · o1.5 1.75 · o2.5 3.10
-
-### 14:00 Paris FC v Angers · LIGUE1
-Ref: Aurelien Petit (4 past matches) ⚠️ thin referee history
-Projected cards **2.9** (Paris FC 1.2, Angers 1.7)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.97 | 2.33 |
-| 3.5 | 3.32 | 1.56 |
-| 4.5 | 6.57 | 1.26 |
-| 5.5 | 15.02 | 1.13 |
-
-Paris FC cards, over at least: o0.5 1.53 · o1.5 3.14 · o2.5 8.69
-
-Angers cards, over at least: o0.5 1.33 · o1.5 2.19 · o2.5 4.66
-
-### 14:30 Augsburg v Mainz · BUNDES
-Ref: Martin Petersen (48 past matches)
-Projected cards **4.1** (Augsburg 1.8, Mainz 2.3)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.40 | 4.62 |
-| 3.5 | 1.86 | 2.51 |
-| 4.5 | 2.80 | 1.71 |
-| 5.5 | 4.76 | 1.36 |
-
-Augsburg cards, over at least: o0.5 1.30 · o1.5 2.02 · o2.5 4.03
-
-Mainz cards, over at least: o0.5 1.20 · o1.5 1.62 · o2.5 2.71
-
-### 15:15 Santander v Sociedad · LALIGA
-Ref: Manuel Jesús Orellana Cid (5 past matches) ⚠️ thin referee history
-Projected cards **5.2** (Santander 2.4, Sociedad 2.8)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.22 | 9.44 |
-| 3.5 | 1.43 | 4.33 |
-| 4.5 | 1.84 | 2.55 |
-| 5.5 | 2.61 | 1.79 |
-
-Santander cards, over at least: o0.5 1.19 · o1.5 1.56 · o2.5 2.51
-
-Sociedad cards, over at least: o0.5 1.15 · o1.5 1.42 · o2.5 2.07
-
-### 16:15 Lorient v Rennes · LIGUE1
-Ref: Marc Bollengier (71 past matches)
-Projected cards **4.3** (Lorient 1.9, Rennes 2.4)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.36 | 5.17 |
-| 3.5 | 1.76 | 2.72 |
-| 4.5 | 2.57 | 1.81 |
-| 5.5 | 4.22 | 1.41 |
-
-Lorient cards, over at least: o0.5 1.27 · o1.5 1.92 · o2.5 3.69
-
-Rennes cards, over at least: o0.5 1.19 · o1.5 1.58 · o2.5 2.56
-
-### 16:30 Liverpool v Man United · EPL
-Ref: S Barrott (69 past matches)
-Projected cards **4.0** (Liverpool 1.8, Man United 2.2)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.42 | 4.41 |
-| 3.5 | 1.91 | 2.42 |
-| 4.5 | 2.91 | 1.67 |
-| 5.5 | 5.02 | 1.34 |
-
-Liverpool cards, over at least: o0.5 1.29 · o1.5 1.99 · o2.5 3.95
-
-Man United cards, over at least: o0.5 1.22 · o1.5 1.68 · o2.5 2.89
-
-### 16:30 Werder Bremen v Hamburg · BUNDES
-Ref: Florian Badstübner (60 past matches)
-Projected cards **3.4** (Werder Bremen 1.7, Hamburg 1.8)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.63 | 3.11 |
-| 3.5 | 2.43 | 1.89 |
-| 4.5 | 4.19 | 1.41 |
-| 5.5 | 8.25 | 1.21 |
-
-Werder Bremen cards, over at least: o0.5 1.33 · o1.5 2.19 · o2.5 4.65
-
-Hamburg cards, over at least: o0.5 1.31 · o1.5 2.07 · o2.5 4.21
-
-### 17:00 Milan v Frosinone · SERIEA
-Ref: Luca Pairetto (57 past matches)
-Projected cards **3.7** (Milan 1.6, Frosinone 2.1)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.50 | 3.75 |
-| 3.5 | 2.11 | 2.15 |
-| 4.5 | 3.39 | 1.54 |
-| 5.5 | 6.19 | 1.27 |
-
-Milan cards, over at least: o0.5 1.35 · o1.5 2.26 · o2.5 4.95
-
-Frosinone cards, over at least: o0.5 1.23 · o1.5 1.72 · o2.5 3.02
-
-### 17:30 Osasuna v Malaga · LALIGA
-Ref: Ricardo de Burgos Bengoetxea (90 past matches)
-Projected cards **4.2** (Osasuna 2.0, Malaga 2.2)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.37 | 5.00 |
-| 3.5 | 1.79 | 2.66 |
-| 4.5 | 2.63 | 1.78 |
-| 5.5 | 4.37 | 1.39 |
-
-Osasuna cards, over at least: o0.5 1.24 · o1.5 1.79 · o2.5 3.23
-
-Malaga cards, over at least: o0.5 1.22 · o1.5 1.70 · o2.5 2.94
-
-### 19:45 Atalanta v Inter · SERIEA
-Ref: Fabio Maresca (60 past matches)
-Projected cards **3.0** (Atalanta 1.6, Inter 1.4)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.85 | 2.52 |
-| 3.5 | 3.01 | 1.64 |
-| 4.5 | 5.69 | 1.30 |
-| 5.5 | 12.43 | 1.15 |
-
-Atalanta cards, over at least: o0.5 1.36 · o1.5 2.29 · o2.5 5.04
-
-Inter cards, over at least: o0.5 1.42 · o1.5 2.56 · o2.5 6.14
-
-### 19:45 Marseille v Le Mans · LIGUE1
-Ref: Eric Wattellier (85 past matches)
-Projected cards **3.5** (Marseille 1.4, Le Mans 2.1)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.58 | 3.30 |
-| 3.5 | 2.32 | 1.97 |
-| 4.5 | 3.90 | 1.45 |
-| 5.5 | 7.49 | 1.23 |
-
-Marseille cards, over at least: o0.5 1.44 · o1.5 2.68 · o2.5 6.65
-
-Le Mans cards, over at least: o0.5 1.23 · o1.5 1.72 · o2.5 3.01
-
-### 20:00 Getafe v Ath Madrid · LALIGA
-Ref: Jesús Gil Manzano (88 past matches)
-Projected cards **4.6** (Getafe 2.4, Ath Madrid 2.2)
-
-| Cards | Over at least | Under at least |
-|---|---|---|
-| 2.5 | 1.29 | 6.37 |
-| 3.5 | 1.61 | 3.19 |
-| 4.5 | 2.24 | 2.03 |
-| 5.5 | 3.48 | 1.52 |
-
-Getafe cards, over at least: o0.5 1.19 · o1.5 1.57 · o2.5 2.52
-
-Ath Madrid cards, over at least: o0.5 1.22 · o1.5 1.68 · o2.5 2.89
+Fiorentina cards, over at least: o0.5 1.30 · o1.5 2.03 · o2.5 4.06
 
 ## Your bets
 
-**15 settled: 13 won, staked £154.81, profit +£140.34 (+91%)**
+**17 settled: 14 won, staked £174.81, profit +£137.61 (+79%)**
 A few hundred settled bets are needed before this means much.
 
 Pending:
 
-- Sat 21 Nov Aston Villa v Sunderland: match over 3.5 @ 1.73, £10
+- Fri 27 Nov Brest v Paris FC: home team over 1.5 @ 2.00, £10
 
 Latest results:
 
+- 23 Nov Monza v Fiorentina: home team over 1.5 @ 1.80 → **lost** (-£10.00)
+- 21 Nov Aston Villa v Sunderland: match over 3.5 @ 1.73 → **won** (+£7.27)
 - 07 Nov Espanol v La Coruna: home team over 2.5 @ 1.95 → **won** (+£9.50)
 - 07 Nov Leeds v Tottenham: match over 4.5 @ 1.83 → **won** (+£6.73)
 - 01 Nov Liverpool v Arsenal: match over 4.5 @ 2.20 → **won** (+£12.00)
-- 25 Oct Hoffenheim v Leverkusen: home team over 2.5 @ 2.88 → **won** (+£18.75)
-- 24 Oct Santander v Espanol: away team over 2.5 @ 1.67 → **won** (+£6.67)
 
 ---
 Odds shown are the **lowest worth taking**: take a price at or above them, skip anything below. Stake £10 flat. Nothing here places bets.
