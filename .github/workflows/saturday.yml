@@ -134,7 +134,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p data/last_run && echo "${{ steps.season.outputs.day }}" > data/last_run/saturday   # later attempts skip
           git add cards.db reports/ data/
-          git add -A data/bet_queue   # queued bets logged above
+          # queued bets logged above; once the queue is empty git drops the folder, and a bare pathspec would fail
+          if [ -d data/bet_queue ] || git ls-files --error-unmatch data/bet_queue >/dev/null 2>&1; then git add -A data/bet_queue; fi
           git diff --cached --quiet || git commit -q -m "Saturday price sheet ${{ steps.season.outputs.day }}"
           git pull -q --rebase origin main && git push -q origin HEAD:main
 
