@@ -1,6 +1,6 @@
 # Card prices · Sat 28 Nov
 
-Updated 09:10 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
+Updated 09:17 UK · priced for Sky Bet · overs need +8% EV, unders +5%. Team news not checked.
 
 **[➕ Log a bet](https://github.com/ddgbykyt4g-lab/card-analyzer/actions/workflows/log-bet.yml)** (tap *Run workflow*)
 
@@ -702,6 +702,10 @@ Sevilla cards, over at least: o0.5 1.14 · o1.5 1.35 · o2.5 1.88
 
 **18 settled: 15 won, staked £184.81, profit +£147.61 (+80%)**
 A few hundred settled bets are needed before this means much.
+
+Pending:
+
+- Sat 28 Nov Ipswich v Aston Villa: match over 3.5 @ 1.67, £10
 
 Latest results:
 
